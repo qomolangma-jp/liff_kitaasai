@@ -70,7 +70,7 @@
 </main>
 
 <footer>
-  <p style="text-align: center; font-size: 0.8rem; color: #999; margin-top: 20px;">&copy; 2024 北浅井町町内会</p>
+  <p style="text-align: center; font-size: 0.8rem; color: #999; margin-top: 20px;">&copy; 2024 北浅井町町内会 ver1.1</p>
 </footer>
 
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
@@ -173,7 +173,6 @@ async function init() {
     const kana_2nd = document.getElementById('kana_2nd').value.trim();
     const kana_1st = document.getElementById('kana_1st').value.trim();
     if(!name_2nd || !name_1st) return alert("姓と名を入力してください");
-    if(!kana_2nd || !kana_1st) return alert("カナの姓と名を入力してください");
 
     button.disabled = true;
     status.className = 'sending';
@@ -225,7 +224,8 @@ async function init() {
     }
   }
 
-  init();
+  init();  
+
 </script>
 </body>
 
