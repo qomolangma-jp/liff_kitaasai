@@ -144,17 +144,11 @@ async function init() {
 
         if (data) {
         // データがあればフォームにセット
-        // 氏名・カナを分割してセット
-        if (data.name) {
-          const [n2, n1] = data.name.split(/\s+|　/);
-          document.getElementById('name_2nd').value = n2 || "";
-          document.getElementById('name_1st').value = n1 || "";
-        }
-        if (data.kana) {
-          const [k2, k1] = data.kana.split(/\s+|　/);
-          document.getElementById('kana_2nd').value = k2 || "";
-          document.getElementById('kana_1st').value = k1 || "";
-        }
+        // 新形式（分割済み）優先、なければ旧形式を分割
+        document.getElementById('name_2nd').value = data.name_2nd || (data.name ? (data.name.split(/\s+|　/)[0] || "") : "");
+        document.getElementById('name_1st').value = data.name_1st || (data.name ? (data.name.split(/\s+|　/)[1] || "") : "");
+        document.getElementById('kana_2nd').value = data.kana_2nd || (data.kana ? (data.kana.split(/\s+|　/)[0] || "") : "");
+        document.getElementById('kana_1st').value = data.kana_1st || (data.kana ? (data.kana.split(/\s+|　/)[1] || "") : "");
         document.getElementById('group').value = data.group || "";
         document.getElementById('address').value = data.address || "";
         document.getElementById('is_digital').value = data.is_digital || "デジタル配布";
