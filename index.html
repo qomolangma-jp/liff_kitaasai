@@ -65,7 +65,6 @@
     </select>
     <button onclick="sendData()">登録する</button>
     <div id="status"></div>
-    <pre id="debug" style="background:#f8f8f8;color:#333;font-size:0.85em;padding:10px;margin-top:20px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;"></pre>
   </div>
 </div>
 </main>
@@ -76,6 +75,11 @@
 
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script>
+/*
+    <pre id="debug" style="background:#f8f8f8;color:#333;font-size:0.85em;padding:10px;margin-top:20px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;"></pre>
+
+*/
+
   const LIFF_ID = '2008962357-ePaQmDO9'; // あなたのLIFF ID
   const GAS_URL = 'https://script.google.com/macros/s/AKfycbw0w3rY63BgD0a0pV4R5f5XmRVi7J8070hjkgIr6zArFyrOBoOXa9XkqJnbMCFF3FUy/exec'; // あなたのGAS ウェブアプリURL
 
@@ -140,7 +144,7 @@ async function init() {
         const data = await response.json();
         // デバッグ用: 取得データをconsoleと画面に表示
         console.log('取得データ:', data);
-        document.getElementById('debug').innerText = JSON.stringify(data, null, 2);
+        //document.getElementById('debug').innerText = JSON.stringify(data, null, 2);
 
         if (data) {
         // データがあればフォームにセット
