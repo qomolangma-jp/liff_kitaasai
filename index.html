@@ -8,6 +8,8 @@
     body { font-family: sans-serif; padding: 20px; background: #f0f0f0; }
     .container { max-width: 500px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; }
     label { display: block; margin-top: 15px; font-weight: bold; }
+    .row-flex { display: flex; gap: 10px; }
+    .row-flex .half { flex: 1; }
     input, select { width: 100%; padding: 12px; margin-top: 5px; box-sizing: border-box; }
     button { width: 100%; padding: 15px; background: #00b900; color: white; border: none; border-radius: 30px; margin-top: 25px; font-weight: bold; cursor: pointer; transition: opacity 0.3s; }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -31,10 +33,30 @@
 <div class="container">
   <h2>北浅井町町内会 配布設定</h2>
   <div id="form">
-    <label>氏名</label><input type="text" id="name">
-    <label>フリガナ</label><input type="text" id="kana">
+    <label>氏名</label>
+    <div class="row-flex">
+      <div class="half">
+        <input type="text" id="name_2nd" name="name_2nd" placeholder="姓">
+      </div>
+      <div class="half">
+        <input type="text" id="name_1st" name="name_1st" placeholder="名">
+      </div>
+    </div>
+    <label>フリガナ</label>
+    <div class="row-flex">
+      <div class="half">
+        <input type="text" id="kana_2nd" name="kana_2nd" placeholder="セイ">
+      </div>
+      <div class="half">
+        <input type="text" id="kana_1st" name="kana_1st" placeholder="メイ">
+      </div>
+    </div>
     <label>班</label>
     <select id="group"></select>
+
+    <label>住所（番地）</label>
+    <input type="text" id="address" name="address" placeholder="">
+
     <label>受取方法</label>
     <select id="is_digital">
       <option value="1">スマホで受け取る</option>
@@ -112,9 +134,19 @@ async function init() {
 
         if (data) {
         // データがあればフォームにセット
-        document.getElementById('name').value = data.name || "";
-        document.getElementById('kana').value = data.kana || "";
+        // 氏名・カナを分割してセット
+        if (data.name) {
+          const [n2, n1] = data.name.split(/\s+|　/);
+          document.getElementById('name_2nd').value = n2 || "";
+          document.getElementById('name_1st').value = n1 || "";
+        }
+        if (data.kana) {
+          const [k2, k1] = data.kana.split(/\s+|　/);
+          document.getElementById('kana_2nd').value = k2 || "";
+          document.getElementById('kana_1st').value = k1 || "";
+        }
         document.getElementById('group').value = data.group || "";
+        document.getElementById('address').value = data.address || "";
         document.getElementById('is_digital').value = data.is_digital || "デジタル配布";
         status.innerText = "登録済みの情報を読み込みました。";
         }
@@ -130,8 +162,12 @@ async function init() {
   async function sendData() {
     const status = document.getElementById('status');
     const button = event.target;
-    const name = document.getElementById('name').value;
-    if(!name) return alert("名前を入力してください");
+    const name_2nd = document.getElementById('name_2nd').value.trim();
+    const name_1st = document.getElementById('name_1st').value.trim();
+    const kana_2nd = document.getElementById('kana_2nd').value.trim();
+    const kana_1st = document.getElementById('kana_1st').value.trim();
+    if(!name_2nd || !name_1st) return alert("姓と名を入力してください");
+    if(!kana_2nd || !kana_1st) return alert("カナの姓と名を入力してください");
 
     button.disabled = true;
     status.className = 'sending';
@@ -153,9 +189,10 @@ async function init() {
       const data = {
         line_id: profile.userId,
         line_name: profile.displayName,
-        name: name,
-        kana: document.getElementById('kana').value,
+        name: name_2nd + ' ' + name_1st,
+        kana: kana_2nd + ' ' + kana_1st,
         group: document.getElementById('group').value,
+        address: document.getElementById('address').value.trim(),
         is_digital: document.getElementById('is_digital').value
       };
 
