@@ -65,12 +65,13 @@
     </select>
     <button onclick="sendData()">登録する</button>
     <div id="status"></div>
+    <pre id="debug" style="background:#f8f8f8;color:#333;font-size:0.85em;padding:10px;margin-top:20px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;"></pre>
   </div>
 </div>
 </main>
 
 <footer>
-  <p style="text-align: center; font-size: 0.8rem; color: #999; margin-top: 20px;">&copy; 2024 北浅井町町内会 ver1.1</p>
+  <p style="text-align: center; font-size: 0.8rem; color: #999; margin-top: 20px;">&copy; 2024 北浅井町町内会 ver1.2</p>
 </footer>
 
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
@@ -137,6 +138,9 @@ async function init() {
         // GETリクエストでLINE IDを送信
         const response = await fetch(`${GAS_URL}?line_id=${profile.userId}`);
         const data = await response.json();
+        // デバッグ用: 取得データをconsoleと画面に表示
+        console.log('取得データ:', data);
+        document.getElementById('debug').innerText = JSON.stringify(data, null, 2);
 
         if (data) {
         // データがあればフォームにセット
