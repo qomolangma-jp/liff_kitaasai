@@ -7,10 +7,10 @@
   <style>
     body { font-family: sans-serif; padding: 0; margin: 0; background: #f0f0f0;}
     .container { max-width: 500px; margin: 0 auto; background: #fff; padding: 30px 15px;}
-    label { display: block; margin-top: 15px; font-weight: bold; }
+    label { display: block; margin-top: 30px; font-weight: bold; }
     .row-flex { display: flex; gap: 10px; }
     .row-flex .half { flex: 1; }
-    input[type="text"], select { width: 100%; padding: 12px; margin-top: 5px; box-sizing: border-box; }
+    input[type="text"], select, textarea { width: 100%; padding: 12px; margin-top: 5px; box-sizing: border-box; }
     .radio-group, .checkbox-group { margin-top: 5px; display: flex; gap: 15px 0; flex-wrap: wrap; justify-content: space-between;}
     .radio-group input[type="radio"],
     .checkbox-group input[type="checkbox"] { display: none; }
@@ -34,6 +34,7 @@
     button { width: 100%; padding: 15px; background: #1a7a3c; color: white; border: none; border-radius: 30px; margin-top: 25px; font-weight: bold; cursor: pointer; transition: opacity 0.3s; }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
     #status { text-align: center; margin-top: 10px; color: #666; font-size: 0.9em; }
+    .required-mark { color: #c0392b; margin-left: 2px; }
   </style>
 </head>
 <body>
@@ -43,28 +44,28 @@
     <form id="profileForm">
       <div class="row-flex">
         <div class="half">
-          <label>氏</label>
-          <input type="text" name="name_2nd" placeholder="例: 山田">
+          <label>氏<span class="required-mark">※</span></label>
+          <input type="text" name="name_2nd" placeholder="例: 山田" required>
         </div>
         <div class="half">
-          <label>名</label>
-          <input type="text" name="name_1st" placeholder="例: 太郎">
+          <label>名<span class="required-mark">※</span></label>
+          <input type="text" name="name_1st" placeholder="例: 太郎" required>
         </div>
       </div>
 
       <div class="row-flex">
         <div class="half">
-          <label>シ</label>
-          <input type="text" name="kana_2nd" placeholder="例: ヤマダ">
+          <label>シ<span class="required-mark">※</span></label>
+          <input type="text" name="kana_2nd" placeholder="例: ヤマダ" required>
         </div>
         <div class="half">
-          <label>メイ</label>
-          <input type="text" name="kana_1st" placeholder="例: タロウ">
+          <label>メイ<span class="required-mark">※</span></label>
+          <input type="text" name="kana_1st" placeholder="例: タロウ" required>
         </div>
       </div>
 
-      <label>班</label>
-      <select name="group">
+      <label>班<span class="required-mark">※</span></label>
+      <select name="group" required>
         <option value="">選択してください</option>
         <script>
           for(let i=1; i<=15; i++) {
@@ -92,7 +93,7 @@
       </div>
 
       <label>その他</label>
-      <input type="text" name="other" placeholder="例: 体育協会、消防団など">
+      <textarea name="other" placeholder="例: 体育協会、消防団など"></textarea>
 
       <button type="button" id="submitBtn" onclick="submitData()">登録する</button>
       <div id="status"></div>
