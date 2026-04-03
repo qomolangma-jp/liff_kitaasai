@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>北浅井町 町内会 デジタル配布設定</title>
   <style>
+    * { box-sizing: border-box; }
     body { font-family: sans-serif; padding: 0; margin: 0; background: #f0f0f0;}
     .container { max-width: 500px; margin: 0 auto; background: #fff; padding: 30px 15px;}
     label { display: block; margin-top: 30px; font-weight: bold; }
@@ -20,8 +21,9 @@
       background: #fff; color: #555; font-weight: bold; font-size: 0.75em;
       cursor: pointer; transition: background 0.2s, border-color 0.2s, color 0.2s;
       user-select: none; -webkit-tap-highlight-color: transparent;
-      width: 44%; margin-top: 0;
+      width: 48%; margin-top: 0;
     }
+    .checkbox-group.ver-3 label {width: 32%;}
     .radio-group label:has(input:checked),
     .checkbox-group label:has(input:checked),
     .radio-group label.is-selected,
@@ -84,9 +86,11 @@
       </div>
 
       <label>カテゴリ（複数選択可）</label>
-      <div class="checkbox-group">
+      <div class="checkbox-group ver-3">
         <label><input type="checkbox" name="role" value="役員"> 役員</label>
         <label><input type="checkbox" name="role" value="班長"> 班長</label>
+        <label><input type="checkbox" name="role" value="公民館"> 公民館</label>
+        <label><input type="checkbox" name="role" value="自主防災会"> 自主防災会</label>
         <label><input type="checkbox" name="role" value="青壮年部"> 青壮年部</label>
         <label><input type="checkbox" name="role" value="婦人部"> 婦人部</label>
         <label><input type="checkbox" name="role" value="ほがらかクラブ"> ほがらかクラブ</label>
