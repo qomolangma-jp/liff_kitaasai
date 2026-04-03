@@ -1,0 +1,110 @@
+/**
+ * データ取得用 (LIFF起動時に実行)
+ * ヘッダー名（input_name）をキーにして、データを動的にオブジェクト化して返します
+ */
+function doGet(e) {
+  const lineId = e.parameter.line_id;
+  if (!lineId) return createJsonResponse({ status: 'error', message: 'No ID' });
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('名簿');
+  if (!sheet) return createJsonResponse(null);
+
+  // 1行目のヘッダー（列名）を取得
+  const lastCol = sheet.getLastColumn();
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  
+  // B列からlineIdを高速検索
+  const cell = sheet.getRange("B:B").createTextFinder(lineId).matchEntireCell(true).findNext();
+  
+  let data = null;
+  if (cell) {
+    const rowIdx = cell.getRow();
+    const rowData = sheet.getRange(rowIdx, 1, 1, lastCol).getValues()[0];
+    
+    data = {};
+    // ヘッダー名（input_name）と値を紐付ける
+    for (let i = 0; i < headers.length; i++) {
+      if (headers[i] !== "") {
+        data[headers[i]] = rowData[i];
+      }
+    }
+  }
+
+  return createJsonResponse(data);
+}
+
+/**
+ * データ保存用 (登録ボタン押下時に実行)
+ * 受け取ったJSONのキー（input_name）とヘッダーを照合し、動的に保存・更新します
+ */
+function doPost(e) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000); 
+
+    const params = JSON.parse(e.postData.contents);
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName('名簿');
+    
+    if (!sheet) {
+      return createJsonResponse({ status: 'error', message: '名簿シートがありません' });
+    }
+
+    const lastCol = sheet.getLastColumn();
+    // 1行目のヘッダー（列名）を取得
+    const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+    const now = new Date();
+
+    // 高速検索
+    const cell = sheet.getRange("B:B").createTextFinder(params.line_id).matchEntireCell(true).findNext();
+
+    if (cell) {
+      // 既存データの更新
+      const rowIdx = cell.getRow();
+      // 元の行データを取得
+      const rowValues = sheet.getRange(rowIdx, 1, 1, lastCol).getValues()[0];
+      
+      // POSTされたデータで上書き（ヘッダー名と一致するものだけ）
+      for (let i = 0; i < headers.length; i++) {
+        const header = headers[i];
+        if (header === 'updated_at') {
+          rowValues[i] = now; // 更新日時は強制上書き
+        } else if (params.hasOwnProperty(header)) {
+          rowValues[i] = params[header];
+        }
+      }
+      // 1行まとめて書き込み (高速化のため)
+      sheet.getRange(rowIdx, 1, 1, lastCol).setValues([rowValues]);
+
+    } else {
+      // 新規データ追加
+      const newRow = new Array(headers.length).fill("");
+      
+      for (let i = 0; i < headers.length; i++) {
+        const header = headers[i];
+        if (header === 'created_at' || header === 'updated_at') {
+          newRow[i] = now;
+        } else if (params.hasOwnProperty(header)) {
+          newRow[i] = params[header];
+        }
+      }
+      sheet.appendRow(newRow);
+    }
+
+    return createJsonResponse({ status: 'success' });
+
+  } catch (err) {
+    return createJsonResponse({ status: 'error', message: err.toString() });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * JSONレスポンス共通処理
+ */
+function createJsonResponse(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
