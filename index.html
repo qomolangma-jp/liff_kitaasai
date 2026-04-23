@@ -9,6 +9,7 @@
     body { font-family: sans-serif; padding: 0; margin: 0; background: #f0f0f0;}
     .container { max-width: 500px; margin: 0 auto; background: #fff; padding: 30px 15px;}
     label { display: block; margin-top: 30px; font-weight: bold; }
+    .under-label{ font-size: 0.9em; margin-top: 5px; }
     .row-flex { display: flex; gap: 10px; }
     .row-flex .half { flex: 1; }
     input[type="text"], select, textarea { width: 100%; padding: 12px; margin-top: 5px; box-sizing: border-box; }
@@ -57,6 +58,25 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     #loading-overlay p { font-size: 0.9em; color: #555; margin: 0; }
+    .officer-badges {
+      margin-top: 8px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .officer-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.75em;
+      font-weight: bold;
+      color: #fff;
+      line-height: 1;
+    }
+    .officer-badge.officer { background: #c0392b; }
+    .officer-badge.leader { background: #1f6fb2; }
   </style>
 </head>
 <body>
@@ -109,14 +129,15 @@
       </div>
 
       <label>カテゴリ（複数選択可）</label>
+      <p class="under-label">役員、班長は運営側で設定いたします</p>
+      <div id="officerBadges" class="officer-badges" aria-live="polite"></div>
       <div class="checkbox-group ver-3">
-        <label><input type="checkbox" name="role" value="役員"> 役員</label>
-        <label><input type="checkbox" name="role" value="班長"> 班長</label>
         <label><input type="checkbox" name="role" value="公民館"> 公民館</label>
         <label><input type="checkbox" name="role" value="自主防災会"> 自主防災会</label>
         <label><input type="checkbox" name="role" value="青壮年部"> 青壮年部</label>
         <label><input type="checkbox" name="role" value="婦人部"> 婦人部</label>
         <label><input type="checkbox" name="role" value="ほがらかクラブ"> ほがらかクラブ</label>
+        <label><input type="checkbox" name="role" value="神社奉賛会"> 神社奉賛会</label>
       </div>
 
       <label>その他の所属</label>
@@ -191,6 +212,53 @@
       syncSelectableLabels();
     }
 
+    function parseOfficerValues(value) {
+      if (!value) {
+        return [];
+      }
+
+      const normalized = String(value)
+        .replace(/\u3000/g, ' ')
+        .trim();
+
+      if (!normalized) {
+        return [];
+      }
+
+      return normalized
+        .split(/[\n\r,、]/)
+        .map(normalizeChoiceValue)
+        .filter(Boolean);
+    }
+
+    function renderOfficerBadges(officerValue) {
+      const badgeContainer = document.getElementById('officerBadges');
+      if (!badgeContainer) {
+        return;
+      }
+
+      const values = parseOfficerValues(officerValue);
+      const uniqueValues = Array.from(new Set(values));
+
+      const badgeClassByRole = {
+        '役員': 'officer',
+        '班長': 'leader'
+      };
+
+      const badgesHtml = uniqueValues
+        .map(role => {
+          const roleClass = badgeClassByRole[role];
+          if (!roleClass) {
+            return '';
+          }
+          return `<span class="officer-badge ${roleClass}">${role}</span>`;
+        })
+        .filter(Boolean)
+        .join('');
+
+      badgeContainer.innerHTML = badgesHtml;
+    }
+
     function syncSelectableLabels() {
       document.querySelectorAll('.radio-group label, .checkbox-group label').forEach(label => {
         const input = label.querySelector('input[type="radio"], input[type="checkbox"]');
@@ -245,6 +313,10 @@
               }
             }
           });
+
+          renderOfficerBadges(result.officer);
+        } else {
+          renderOfficerBadges('');
         }
         overlay.classList.remove('visible');
         status.innerText = "";
