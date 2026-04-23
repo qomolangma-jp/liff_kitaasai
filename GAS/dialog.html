@@ -2,6 +2,7 @@
 <html>
   <head>
     <base target="_top">
+    <title>LINEメッセージ一斉送信</title>
     <style>
       body { font-family: sans-serif; padding: 15px; color: #333; }
       textarea { width: 100%; height: 120px; padding: 10px; box-sizing: border-box; resize: none; margin-bottom: 10px;}
@@ -31,6 +32,7 @@
 
     <script>
       let currentTargetIds = []; // 送信対象のIDを保持
+      let currentTargetNames = []; // 送信対象の名前を保持
 
       // STEP 1: 対象者の確認
       function checkTargets() {
@@ -57,6 +59,7 @@
             document.getElementById('cancelBtn').style.display = "block";
             
             currentTargetIds = targets.ids;
+            currentTargetNames = targets.names;
             
             if (targets.count === 0) {
               statusArea.innerHTML = "<span class='alert'>対象者が0人です。フィルタ設定を確認してください。</span>";
@@ -87,6 +90,7 @@
         document.getElementById('cancelBtn').style.display = "none";
         document.getElementById('statusArea').style.display = "none";
         currentTargetIds = [];
+        currentTargetNames = [];
       }
 
       // STEP 2: 実際の送信
@@ -111,7 +115,7 @@
             cancelBtn.disabled = false;
             sendBtn.innerText = "確定して送信する";
           })
-          .executeLineMessage(currentTargetIds, msg);
+          .executeLineMessage(currentTargetIds, msg, currentTargetNames);
       }
     </script>
   </body>

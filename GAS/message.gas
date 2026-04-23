@@ -3,79 +3,50 @@
 // ==========================================
 const LINE_ACCESS_TOKEN = "Irchk86Cp3IpP7ONc9HN3klzgT7Z0PRBWNqhm/WfIhcZrLWqcGYXLoHtmIrCnEX8NQuvxpGXk5srWGiSUadkPfaT497Lw5hE0s6ka07VDxzRRrOoLbzcUo8grMqagVyCn6NylXvaUqEYRzbKLxi+0wdB04t89/1O/w1cDnyilFU=";
 
+// 履歴を保存する別スプレッドシートのID
+const HISTORY_SS_ID = "1_D6ifcDIZpzOcImJNEwHdoFg7Bwsmk_pENq9lC8ILuM";
+const HISTORY_SHEET_NAME = "history";
+
 /**
- * スプレッドシートを開いたときにカスタムメニューを追加
+ * ダイアログから呼び出されるメイン関数
  */
-function onOpen() {
-  const ui = SpreadsheetApp.getUi();
-  ui.createMenu('LINE送信メニュー')
-    .addItem('表示中のユーザーにメッセージ送信', 'showSendDialog')
-    .addToUi();
+function sendLineFromDialog(message) {
+  // 1. 現在表示されている（フィルタ済みの）ターゲットを再取得
+  const targets = getTargetUsers();
+  
+  if (targets.count === 0) {
+    throw new Error("送信対象が見つかりません。名簿シートのフィルタ設定を確認してください。");
+  }
+
+  // 2. 送信処理を実行（ID、メッセージ、名前のリストを渡す）
+  return executeLineMessage(targets.ids, message, targets.names);
 }
 
 /**
- * メッセージ入力用のポップアップ画面を表示
+ * 実際にLINEメッセージを送信し、履歴を保存する
  */
-function showSendDialog() {
-  const html = HtmlService.createHtmlOutputFromFile('dialog')
-      .setWidth(450)
-      .setHeight(400);
-  SpreadsheetApp.getUi().showModalDialog(html, 'LINEメッセージ一斉送信');
-}
-
-/**
- * 送信対象者のリストを取得して返す（送信はまだしない）
- */
-function getTargetUsers() {
-  // スプレッドシートの最新状態を強制反映（フィルタのラグ防止）
-  SpreadsheetApp.flush(); 
-
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('名簿');
-  const lastRow = sheet.getLastRow();
+function executeLineMessage(targetIds, message, targetNames) {
+  let status = "成功";
   
-  if (lastRow <= 1) return { count: 0, names: [], ids: [] };
-
-  // B列(LINE ID)とC列(表示名または氏名など)を取得
-  // ※C列がline_nameであることを前提としています
-  const data = sheet.getRange(2, 2, lastRow - 1, 2).getValues();
-  
-  const targets = { count: 0, names: [], ids: [] };
-
-  for (let i = 0; i < data.length; i++) {
-    const rowIndex = i + 2; 
-    
-    // 行が非表示になっていないかチェック
-    if (!sheet.isRowHiddenByFilter(rowIndex) && !sheet.isRowHiddenByUser(rowIndex)) {
-      const lineId = data[i][0];
-      const name = data[i][1]; // C列の名前
-      if (lineId) {
-        targets.ids.push(lineId);
-        targets.names.push(name || '名前なし');
-      }
+  try {
+    const chunkSize = 500;
+    for (let i = 0; i < targetIds.length; i += chunkSize) {
+      const chunkIds = targetIds.slice(i, i + chunkSize);
+      executeMulticast(chunkIds, message);
     }
+  } catch (e) {
+    status = "失敗: " + e.message;
+    saveHistory(targetNames, message, status);
+    throw e; 
   }
-  
-  targets.count = targets.ids.length;
-  return targets;
-}
 
-/**
- * 実際にLINEメッセージを送信する処理
- */
-function executeLineMessage(targetIds, message) {
-  if (!targetIds || targetIds.length === 0) throw new Error("送信対象がいません。");
-
-  const chunkSize = 500;
-  for (let i = 0; i < targetIds.length; i += chunkSize) {
-    const chunkIds = targetIds.slice(i, i + chunkSize);
-    executeMulticast(chunkIds, message);
-  }
+  // 成功時の履歴保存
+  saveHistory(targetNames, message, status);
   return `${targetIds.length}名にメッセージを送信しました。`;
 }
 
 /**
- * LINE Messaging API (Multicast) を叩く処理
+ * LINE Messaging API (Multicast) の実行
  */
 function executeMulticast(toIds, messageText) {
   const url = "https://api.line.me/v2/bot/message/multicast";
@@ -92,8 +63,86 @@ function executeMulticast(toIds, messageText) {
     payload: JSON.stringify(payload),
     muteHttpExceptions: true
   };
+
   const response = UrlFetchApp.fetch(url, options);
-  if (response.getResponseCode() !== 200) {
-    throw new Error("LINE APIエラー: " + response.getContentText());
+  const responseCode = response.getResponseCode();
+  
+  if (responseCode !== 200) {
+    throw new Error(`LINE APIエラー(Code:${responseCode}): ${response.getContentText()}`);
   }
+}
+
+/**
+ * 送信履歴を保存
+ */
+function saveHistory(names, message, status) {
+  try {
+    const ss = SpreadsheetApp.openById(HISTORY_SS_ID);
+    let historySheet = ss.getSheetByName(HISTORY_SHEET_NAME);
+
+    if (!historySheet) {
+      historySheet = ss.insertSheet(HISTORY_SHEET_NAME);
+      historySheet.appendRow(['created_at', 'target', 'message', 'send_status']);
+    }
+
+    const now = new Date();
+    // 送信先名の配列をカンマ区切りにする。もし空なら「不明」とする
+    const targetNamesString = (names && names.length > 0) ? names.join(', ') : '不明';
+
+    historySheet.appendRow([
+      now, 
+      targetNamesString, 
+      message, 
+      status
+    ]);
+    
+  } catch (e) {
+    console.error("履歴保存に失敗しました: " + e.message);
+  }
+}
+
+/**
+ * メニューとダイアログの制御
+ */
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('LINE送信メニュー')
+    .addItem('表示中のユーザーにメッセージ送信', 'showSendDialog')
+    .addToUi();
+}
+
+function showSendDialog() {
+  const html = HtmlService.createHtmlOutputFromFile('dialog')
+      .setWidth(450)
+      .setHeight(450);
+  SpreadsheetApp.getUi().showModalDialog(html, 'LINEメッセージ一斉送信');
+}
+
+/**
+ * 送信対象者の抽出（フィルタ考慮）
+ */
+function getTargetUsers() {
+  SpreadsheetApp.flush(); 
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('名簿');
+  if (!sheet) throw new Error("「名簿」シートが見つかりません。");
+  
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return { count: 0, names: [], ids: [] };
+
+  const data = sheet.getRange(2, 2, lastRow - 1, 2).getValues(); // B列(ID), C列(名前)
+  const targets = { count: 0, names: [], ids: [] };
+
+  for (let i = 0; i < data.length; i++) {
+    const rowIndex = i + 2; 
+    if (!sheet.isRowHiddenByFilter(rowIndex) && !sheet.isRowHiddenByUser(rowIndex)) {
+      const lineId = data[i][0];
+      const name = data[i][1];
+      if (lineId) {
+        targets.ids.push(lineId);
+        targets.names.push(name || '名前なし');
+      }
+    }
+  }
+  targets.count = targets.ids.length;
+  return targets;
 }
