@@ -299,6 +299,8 @@ function handleLiffSubmission(params) {
       applicantName: realName,
       date: params.date,
       room: params.room,
+
+      
       time_slot: params.time_slot,
       request: requestText
     });
