@@ -1,0 +1,156 @@
+// ==========================================
+// 管理者用：LINE一斉送信機能
+// ==========================================
+const LINE_ACCESS_TOKEN = getRequiredScriptProperty('LINE_ACCESS_TOKEN');
+
+// 履歴を保存する別スプレッドシートのID
+const HISTORY_SS_ID = getRequiredScriptProperty('HISTORY_SS_ID');
+const HISTORY_SHEET_NAME = "history";
+
+function getRequiredScriptProperty(key) {
+  const value = PropertiesService.getScriptProperties().getProperty(key);
+  if (!value) {
+    throw new Error('Script property "' + key + '" is not set.');
+  }
+  return value.trim();
+}
+
+/**
+ * ダイアログから呼び出されるメイン関数
+ */
+function sendLineFromDialog(message) {
+  // 1. 現在表示されている（フィルタ済みの）ターゲットを再取得
+  const targets = getTargetUsers();
+  
+  if (targets.count === 0) {
+    throw new Error("送信対象が見つかりません。名簿シートのフィルタ設定を確認してください。");
+  }
+
+  // 2. 送信処理を実行（ID、メッセージ、名前のリストを渡す）
+  return executeLineMessage(targets.ids, message, targets.names);
+}
+
+/**
+ * 実際にLINEメッセージを送信し、履歴を保存する
+ */
+function executeLineMessage(targetIds, message, targetNames) {
+  let status = "成功";
+  
+  try {
+    const chunkSize = 500;
+    for (let i = 0; i < targetIds.length; i += chunkSize) {
+      const chunkIds = targetIds.slice(i, i + chunkSize);
+      executeMulticast(chunkIds, message);
+    }
+  } catch (e) {
+    status = "失敗: " + e.message;
+    saveHistory(targetNames, message, status);
+    throw e; 
+  }
+
+  // 成功時の履歴保存
+  saveHistory(targetNames, message, status);
+  return `${targetIds.length}名にメッセージを送信しました。`;
+}
+
+/**
+ * LINE Messaging API (Multicast) の実行
+ */
+function executeMulticast(toIds, messageText) {
+  const url = "https://api.line.me/v2/bot/message/multicast";
+  const payload = {
+    to: toIds,
+    messages: [{ type: "text", text: messageText }]
+  };
+  const options = {
+    method: "post",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + LINE_ACCESS_TOKEN
+    },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
+
+  const response = UrlFetchApp.fetch(url, options);
+  const responseCode = response.getResponseCode();
+  
+  if (responseCode !== 200) {
+    throw new Error(`LINE APIエラー(Code:${responseCode}): ${response.getContentText()}`);
+  }
+}
+
+/**
+ * 送信履歴を保存
+ */
+function saveHistory(names, message, status) {
+  try {
+    const ss = SpreadsheetApp.openById(HISTORY_SS_ID);
+    let historySheet = ss.getSheetByName(HISTORY_SHEET_NAME);
+
+    if (!historySheet) {
+      historySheet = ss.insertSheet(HISTORY_SHEET_NAME);
+      historySheet.appendRow(['created_at', 'target', 'message', 'send_status']);
+    }
+
+    const now = new Date();
+    // 送信先名の配列をカンマ区切りにする。もし空なら「不明」とする
+    const targetNamesString = (names && names.length > 0) ? names.join(', ') : '不明';
+
+    historySheet.appendRow([
+      now, 
+      targetNamesString, 
+      message, 
+      status
+    ]);
+    
+  } catch (e) {
+    console.error("履歴保存に失敗しました: " + e.message);
+  }
+}
+
+/**
+ * メニューとダイアログの制御
+ */
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('LINE送信メニュー')
+    .addItem('表示中のユーザーにメッセージ送信', 'showSendDialog')
+    .addToUi();
+}
+
+function showSendDialog() {
+  const html = HtmlService.createHtmlOutputFromFile('dialog')
+      .setWidth(450)
+      .setHeight(450);
+  SpreadsheetApp.getUi().showModalDialog(html, 'LINEメッセージ一斉送信');
+}
+
+/**
+ * 送信対象者の抽出（フィルタ考慮）
+ */
+function getTargetUsers() {
+  SpreadsheetApp.flush(); 
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('名簿');
+  if (!sheet) throw new Error("「名簿」シートが見つかりません。");
+  
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return { count: 0, names: [], ids: [] };
+
+  const data = sheet.getRange(2, 2, lastRow - 1, 2).getValues(); // B列(ID), C列(名前)
+  const targets = { count: 0, names: [], ids: [] };
+
+  for (let i = 0; i < data.length; i++) {
+    const rowIndex = i + 2; 
+    if (!sheet.isRowHiddenByFilter(rowIndex) && !sheet.isRowHiddenByUser(rowIndex)) {
+      const lineId = data[i][0];
+      const name = data[i][1];
+      if (lineId) {
+        targets.ids.push(lineId);
+        targets.names.push(name || '名前なし');
+      }
+    }
+  }
+  targets.count = targets.ids.length;
+  return targets;
+}
