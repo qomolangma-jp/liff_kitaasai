@@ -124,28 +124,38 @@ function doGet(e) {
 // ====================================================================
 function doPost(e) {
   try {
-    const bodyString = e && e.postData && e.postData.contents ? e.postData.contents : "{}";
-    const postData = JSON.parse(bodyString);
-    
-    // A. LINEからのWebhookシグナル（テキストメッセージ、または管理者の承認ポストバック）
+    const postData = JSON.parse(e.postData.contents);
+
+    // A. LINEからのWebhookシグナルの場合
     if (postData.events) {
-      const signature = getLineSignatureFromEvent(e);
-      if (!validateSignature(bodyString, signature)) {
-        return ContentService.createTextOutput(JSON.stringify({ result: "unauthorized" }))
-          .setMimeType(ContentService.MimeType.JSON);
+      
+      // ✨【追加】LINE Developersからの「検証」ボタンによるテストアクセスをパスさせる
+      if (postData.events.length === 0) {
+        return ContentService.createTextOutput(JSON.stringify({ result: "ok" }))
+                             .setMimeType(ContentService.MimeType.JSON);
       }
+      
+      // 署名検証ロジック
+      const lineSignature = e.headers && (e.headers['X-Line-Signature'] || e.headers['x-line-signature']);
+      
+      if (!validateSignature(e.postData.contents, lineSignature)) {
+        console.warn("⚠️ 署名検証に失敗しました。");
+        // LINEプラットフォームに対してリダイレクトやエラーを起こさないよう、
+        // 200形式のテキスト、またはステータスコードで「受け取った(拒否した)」旨を平文で返すのが安全です
+        return ContentService.createTextOutput('{"result": "unauthorized"}')
+                             .setMimeType(ContentService.MimeType.JSON);
+      }
+      
       return handleLineWebhook(postData.events);
+      
     } else {
       // B. 住民用のLIFF予約フォームから直接送られてきた新規申請
-      if (!verifyLiffToken(postData.liff_token)) {
-        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "invalid liff token" }))
-          .setMimeType(ContentService.MimeType.JSON);
-      }
       return handleLiffSubmission(postData);
     }
+
   } catch(error) {
     return ContentService.createTextOutput(JSON.stringify({ status: "error", message: error.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
+                         .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
@@ -300,7 +310,7 @@ function handleLiffSubmission(params) {
       date: params.date,
       room: params.room,
 
-      
+
       time_slot: params.time_slot,
       request: requestText
     });
