@@ -88,6 +88,10 @@
       background: #ef4444;
       border-color: #dc2626;
     }
+    .calendar-slot-dot-partial {
+      background: #facc15;
+      border-color: #eab308;
+    }
     .calendar-detail-card {
       border: 1px solid #bbf7d0;
       background: linear-gradient(180deg, #f0fdf4, #ffffff);
@@ -986,10 +990,15 @@
         TIME_SLOTS_MASTER.forEach(slotName => {
           const dot = document.createElement("span");
           const availability = getSlotAvailabilityFromRoomSummary(dayRoomSummary, slotName);
-          dot.className = `calendar-slot-dot ${availability.isFullyBooked ? "calendar-slot-dot-booked" : "calendar-slot-dot-free"}`;
+          const dotStateClass = availability.isFullyBooked
+            ? "calendar-slot-dot-booked"
+            : (availability.hasAnyBooking ? "calendar-slot-dot-partial" : "calendar-slot-dot-free");
+          dot.className = `calendar-slot-dot ${dotStateClass}`;
           dot.title = availability.isFullyBooked
             ? `${slotName}: 予約済み（${availability.bookedCount}/${availability.totalRooms}室利用）`
-            : `${slotName}: 空きあり（${availability.totalRooms - availability.bookedCount}/${availability.totalRooms}室 空き）`;
+            : (availability.hasAnyBooking
+              ? `${slotName}: 一部予約済み（${availability.bookedCount}/${availability.totalRooms}室利用）`
+              : `${slotName}: 空きあり（${availability.totalRooms - availability.bookedCount}/${availability.totalRooms}室 空き）`);
           statusContainer.appendChild(dot);
         });
       }
