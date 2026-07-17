@@ -153,6 +153,84 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     #loading-overlay p { font-size: 0.9em; color: #fff; margin: 0; }
+    #result-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.55);
+      z-index: 110;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    #result-modal.visible { display: flex; }
+    .modal-card {
+      width: min(420px, 100%);
+      background: #fff;
+      border-radius: 18px;
+      padding: 22px 18px 16px;
+      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+      border: 1px solid #e2e8f0;
+      text-align: center;
+      transform: translateY(6px);
+      opacity: 0;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+    #result-modal.visible .modal-card {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    .modal-icon {
+      width: 54px;
+      height: 54px;
+      margin: 0 auto 10px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      font-weight: 900;
+    }
+    .modal-icon.success {
+      background: #dcfce7;
+      color: #166534;
+    }
+    .modal-icon.error {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+    .modal-icon.info {
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+    #modal-title {
+      margin: 0;
+      font-size: 1.05rem;
+      color: #0f172a;
+      font-weight: 900;
+    }
+    #modal-message {
+      margin: 10px 0 0;
+      color: #334155;
+      font-size: 0.93rem;
+      line-height: 1.7;
+      white-space: pre-line;
+    }
+    #modal-close-btn {
+      margin-top: 16px;
+      width: 100%;
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 0.95rem;
+      font-weight: 900;
+      border: none;
+      cursor: pointer;
+      color: #fff;
+      background: linear-gradient(135deg, #16a34a, #15803d);
+    }
+    #modal-close-btn.error {
+      background: linear-gradient(135deg, #dc2626, #b91c1c);
+    }
     .officer-badges {
       margin-top: 8px;
       display: flex;
@@ -186,6 +264,15 @@
   <div id="loading-overlay">
     <div class="spinner"></div>
     <p>データ読み込み中...</p>
+  </div>
+
+  <div id="result-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-message">
+    <div class="modal-card">
+      <div id="modal-icon" class="modal-icon info" aria-hidden="true">i</div>
+      <h2 id="modal-title">お知らせ</h2>
+      <p id="modal-message"></p>
+      <button type="button" id="modal-close-btn">閉じる</button>
+    </div>
   </div>
 
   <div class="container">
@@ -238,7 +325,7 @@
 
       <label>デジタル配布希望</label>
       <div class="radio-group">
-        <label><input type="radio" name="is_digital" value="1"> スマホで受け取る</label>
+        <label><input type="radio" name="is_digital" value="1" required> スマホで受け取る</label>
         <label><input type="radio" name="is_digital" value="2"> 紙で受け取る</label>
       </div>
 
@@ -385,6 +472,44 @@
       });
     }
 
+    function showModal({ title = 'お知らせ', message = '', type = 'info', onClose = null }) {
+      const modal = document.getElementById('result-modal');
+      const titleEl = document.getElementById('modal-title');
+      const messageEl = document.getElementById('modal-message');
+      const iconEl = document.getElementById('modal-icon');
+      const closeBtn = document.getElementById('modal-close-btn');
+
+      if (!modal || !titleEl || !messageEl || !iconEl || !closeBtn) {
+        return;
+      }
+
+      const iconByType = {
+        success: '✓',
+        error: '!',
+        info: 'i'
+      };
+
+      const safeType = iconByType[type] ? type : 'info';
+
+      titleEl.textContent = title;
+      messageEl.textContent = message;
+      iconEl.textContent = iconByType[safeType];
+      iconEl.className = `modal-icon ${safeType}`;
+      closeBtn.className = safeType === 'error' ? 'error' : '';
+
+      const handleClose = () => {
+        modal.classList.remove('visible');
+        closeBtn.removeEventListener('click', handleClose);
+        if (typeof onClose === 'function') {
+          onClose();
+        }
+      };
+
+      closeBtn.addEventListener('click', handleClose);
+      modal.classList.add('visible');
+      closeBtn.focus();
+    }
+
     window.onload = async function() {
       const status = document.getElementById('status');
       
@@ -447,6 +572,12 @@
     async function submitData() {
       const button = document.getElementById('submitBtn');
       const status = document.getElementById('status');
+      const form = document.getElementById('profileForm');
+
+      if (form && !form.reportValidity()) {
+        return;
+      }
+
       button.disabled = true;
       status.innerText = "送信中...";
       
@@ -486,7 +617,11 @@
         if (isLocalEnvironment()) {
           await new Promise(resolve => setTimeout(resolve, 1000));
           console.log("送信データ:", data);
-          alert("登録完了！（ローカルダミー送信）");
+          showModal({
+            title: '登録完了',
+            message: 'ローカル環境でダミー送信しました。',
+            type: 'success'
+          });
         } else {
           const response = await fetch(GAS_URL, {
             method: "POST",
@@ -494,14 +629,26 @@
           });
           const result = await response.json();
           if (result.status === 'success') {
-            alert("登録完了！");
-            liff.closeWindow();
+            showModal({
+              title: '登録完了',
+              message: '登録が完了しました。',
+              type: 'success',
+              onClose: () => liff.closeWindow()
+            });
           } else {
-            alert("エラーが発生しました: " + result.message);
+            showModal({
+              title: '送信エラー',
+              message: 'エラーが発生しました: ' + result.message,
+              type: 'error'
+            });
           }
         }
       } catch (err) {
-        alert("通信エラー: " + err.message);
+        showModal({
+          title: '通信エラー',
+          message: '通信エラー: ' + err.message,
+          type: 'error'
+        });
       } finally {
         button.disabled = false;
         status.innerText = "";
