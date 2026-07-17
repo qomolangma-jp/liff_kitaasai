@@ -116,6 +116,11 @@
     .checkbox-group label:has(input:checked):hover,
     .radio-group label.is-selected:hover,
     .checkbox-group label.is-selected:hover { color: #fff; }
+    .radio-group.is-invalid label {
+      border-color: #dc2626;
+      color: #b91c1c;
+      background: #fef2f2;
+    }
     button {
       width: 100%;
       padding: 15px;
@@ -325,7 +330,7 @@
 
       <label>デジタル配布希望</label>
       <div class="radio-group">
-        <label><input type="radio" name="is_digital" value="1" required> スマホで受け取る</label>
+        <label><input type="radio" name="is_digital" value="1"> スマホで受け取る</label>
         <label><input type="radio" name="is_digital" value="2"> 紙で受け取る</label>
       </div>
 
@@ -470,6 +475,11 @@
           label.classList.toggle('is-selected', input.checked);
         }
       });
+
+      const digitalGroup = document.querySelector('.radio-group');
+      if (digitalGroup && document.querySelector('input[name="is_digital"]:checked')) {
+        digitalGroup.classList.remove('is-invalid');
+      }
     }
 
     function showModal({ title = 'お知らせ', message = '', type = 'info', onClose = null }) {
@@ -573,6 +583,21 @@
       const button = document.getElementById('submitBtn');
       const status = document.getElementById('status');
       const form = document.getElementById('profileForm');
+      const digitalGroup = document.querySelector('.radio-group');
+      const isDigitalSelected = Boolean(document.querySelector('input[name="is_digital"]:checked'));
+
+      if (!isDigitalSelected) {
+        if (digitalGroup) {
+          digitalGroup.classList.add('is-invalid');
+          digitalGroup.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        showModal({
+          title: '入力チェック',
+          message: 'デジタル配布希望を選択してください。',
+          type: 'error'
+        });
+        return;
+      }
 
       if (form && !form.reportValidity()) {
         return;
