@@ -759,21 +759,21 @@ function updateTimeSlots() {
         `;
       } else {
         // すべて空いている場合は「終日」も選択可能
-        label.className = "relative flex items-center justify-between p-4 border-2 border-emerald-100 hover:border-emerald-300 rounded-xl cursor-pointer bg-emerald-50/30 transition group";
+        label.className = "relative flex items-center justify-between p-4 border-2 border-emerald-100 hover:border-emerald-300 hover:shadow-sm rounded-xl cursor-pointer bg-emerald-50/30 transition-all duration-200 group";
         label.innerHTML = `
           <input type="radio" name="time_slot" value="終日" class="sr-only peer">
-          <div class="peer-checked:border-brand-500 border-2 border-transparent rounded-xl absolute inset-0 transition pointer-events-none"></div>
-          <div class="flex items-center space-x-3">
-            <span class="w-5 h-5 rounded-full border-2 border-slate-300 peer-checked:border-brand-500 peer-checked:bg-brand-500 flex items-center justify-center text-white text-[10px] transition">
+          <div class="absolute inset-0 rounded-xl border-2 border-transparent peer-checked:border-emerald-500 peer-checked:bg-emerald-100/80 peer-checked:shadow-[0_0_0_2px_rgba(16,185,129,0.15)] transition-all duration-200 pointer-events-none"></div>
+          <div class="flex items-center space-x-3 relative z-10">
+            <span class="w-8 h-8 rounded-full border-2 border-slate-300 peer-checked:border-emerald-600 peer-checked:bg-emerald-600 flex items-center justify-center text-white text-[10px] transition-all duration-200">
               <i class="fa-solid fa-check opacity-0 peer-checked:opacity-100"></i>
             </span>
             <div>
-              <p class="text-xs text-brand-700 font-bold">${slot.name}</p>
-              <p class="text-sm font-semibold text-slate-800">${slot.label}</p>
+              <p class="text-xs font-bold text-brand-700 peer-checked:text-emerald-700">${slot.name}</p>
+              <p class="text-sm font-semibold text-slate-800 peer-checked:text-emerald-900">${slot.label}</p>
             </div>
           </div>
-          <span class="bg-brand-100 text-brand-700 border border-brand-300 text-[10px] font-bold px-2 py-1 rounded-md">
-            終日まとめて予約
+          <span class="relative z-10 bg-brand-100 text-brand-700 border border-brand-300 peer-checked:bg-emerald-100 peer-checked:text-emerald-800 peer-checked:border-emerald-300 text-[10px] font-bold px-2 py-1 rounded-md transition-all duration-200">
+            ${slot.name === "終日" ? "終日まとめて予約" : "空枠あり"}
           </span>
         `;
       }
@@ -845,21 +845,21 @@ function updateTimeSlots() {
       }
     } else {
       // 予約が入っていない空き枠
-      label.className = "relative flex items-center justify-between p-4 border-2 border-slate-100 hover:border-slate-200 rounded-xl cursor-pointer bg-white transition group";
+      label.className = "relative flex items-center justify-between p-4 border-2 border-slate-100 hover:border-emerald-200 hover:shadow-sm rounded-xl cursor-pointer bg-white transition-all duration-200 group";
       
       label.innerHTML = `
         <input type="radio" name="time_slot" value="${slot.name}" class="sr-only peer">
-        <div class="peer-checked:border-brand-500 border-2 border-transparent rounded-xl absolute inset-0 transition pointer-events-none"></div>
-        <div class="flex items-center space-x-3">
-          <span class="w-5 h-5 rounded-full border-2 border-slate-300 peer-checked:border-brand-500 peer-checked:bg-brand-500 flex items-center justify-center text-white text-[10px] transition">
+        <div class="absolute inset-0 rounded-xl border-2 border-transparent peer-checked:border-emerald-500 peer-checked:bg-emerald-50/80 peer-checked:shadow-[0_0_0_2px_rgba(16,185,129,0.15)] transition-all duration-200 pointer-events-none"></div>
+        <div class="flex items-center space-x-3 relative z-10">
+          <span class="w-8 h-8 rounded-full border-2 border-slate-300 peer-checked:border-emerald-600 peer-checked:bg-emerald-600 flex items-center justify-center text-white text-[10px] transition-all duration-200">
             <i class="fa-solid fa-check opacity-0 peer-checked:opacity-100"></i>
           </span>
           <div>
-            <p class="text-xs text-slate-500 font-bold group-hover:text-slate-700">${slot.name}</p>
-            <p class="text-sm font-semibold text-slate-700">${slot.label}</p>
+            <p class="text-xs text-slate-500 font-bold group-hover:text-slate-700 peer-checked:text-emerald-700">${slot.name}</p>
+            <p class="text-sm font-semibold text-slate-700 peer-checked:text-emerald-900">${slot.label}</p>
           </div>
         </div>
-        <span class="bg-brand-50 text-brand-600 border border-brand-200 text-[10px] font-bold px-2 py-1 rounded-md">
+        <span class="relative z-10 bg-brand-50 text-brand-600 border border-brand-200 peer-checked:bg-emerald-100 peer-checked:text-emerald-800 peer-checked:border-emerald-300 text-[10px] font-bold px-2 py-1 rounded-md transition-all duration-200">
           <i class="fa-solid fa-circle text-[8px] mr-1 animate-pulse"></i>空枠あり
         </span>
       `;
