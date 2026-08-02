@@ -124,40 +124,74 @@ function doGet(e) {
 // ====================================================================
 function doPost(e) {
   try {
-    const postData = JSON.parse(e.postData.contents);
+    const bodyString = e && e.postData && e.postData.contents ? e.postData.contents : "{}";
+    const postData = JSON.parse(bodyString);
 
-    // A. LINEからのWebhookシグナルの場合
+    // A. LINEからのWebhookシグナルの場合（メッセージ受信、ポストバックボタン等）
     if (postData.events) {
       
-      // ✨【追加】LINE Developersからの「検証」ボタンによるテストアクセスをパスさせる
+      // LINE Developersからの「検証」ボタン用バイパス
       if (postData.events.length === 0) {
         return ContentService.createTextOutput(JSON.stringify({ result: "ok" }))
                              .setMimeType(ContentService.MimeType.JSON);
       }
       
-      // 署名検証ロジック
-      const lineSignature = e.headers && (e.headers['X-Line-Signature'] || e.headers['x-line-signature']);
+      // 🔒 【セキュリティ】URLパラメータから秘密の合言葉を検証
+      const systemSecret = getRequiredScriptProperty('WEBHOOK_SECRET');
+      const incomingSecret = e && e.parameter ? e.parameter.secret : null;
       
-      if (!validateSignature(e.postData.contents, lineSignature)) {
-        console.warn("⚠️ 署名検証に失敗しました。");
-        // LINEプラットフォームに対してリダイレクトやエラーを起こさないよう、
-        // 200形式のテキスト、またはステータスコードで「受け取った(拒否した)」旨を平文で返すのが安全です
-        return ContentService.createTextOutput('{"result": "unauthorized"}')
+      const isSecretValid = (systemSecret && incomingSecret === systemSecret);
+      const matchCheck = isSecretValid ? "⭕ 一致" : "❌ 不一致";
+      const secretCheck = systemSecret ? "設定あり (文字数: " + systemSecret.length + ")" : "❌ 未設定";
+
+      // 📋 【ご要望：システムログシートへの詳細な状況書き出し】
+      try {
+        const ss = SpreadsheetApp.openById(YOYAKU_SS_ID); // グローバル定数の予約台帳IDを使用
+        let logSheet = ss.getSheetByName("システムログ") || ss.insertSheet("システムログ");
+        
+        // シートが新しく作られた、または空の場合はヘッダーをリセット
+        if (logSheet.getLastRow() === 0 || logSheet.getRange("B1").getValue() === "LINEからの署名") {
+          logSheet.clear();
+          logSheet.appendRow(["日時", "LINEから届いた合言葉(URL)", "GAS側の設定状態", "プロパティ状態", "合言葉の一致判定"]);
+        }
+        
+        logSheet.appendRow([
+          new Date(), 
+          incomingSecret || "（空っぽ・URLの末尾に付いていません）", 
+          systemSecret ? "⭕ 稼働中" : "❌ 未設定", 
+          secretCheck, 
+          matchCheck
+        ]);
+      } catch(err) {
+        console.error("システムログへの書き込みに失敗しました: " + err.toString());
+      }
+      
+      // 🔒 合言葉の検証に失敗した場合はここで処理をブロック
+      if (!isSecretValid) {
+        console.warn("⚠️ 不正なWebhookアクセス（Secret不一致）をブロックしました。");
+        return ContentService.createTextOutput(JSON.stringify({ result: "unauthorized" }))
                              .setMimeType(ContentService.MimeType.JSON);
       }
       
+      // 🟢 合言葉が一致した場合のみ、本来の処理（承認・却下など）を実行
       return handleLineWebhook(postData.events);
       
     } else {
       // B. 住民用のLIFF予約フォームから直接送られてきた新規申請
+      if (!verifyLiffToken(postData.liff_token)) {
+        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "invalid liff token" }))
+                             .setMimeType(ContentService.MimeType.JSON);
+      }
       return handleLiffSubmission(postData);
     }
 
   } catch(error) {
+    console.error("❌ doPost内でエラーが発生しました: " + error.toString());
     return ContentService.createTextOutput(JSON.stringify({ status: "error", message: error.toString() }))
                          .setMimeType(ContentService.MimeType.JSON);
   }
 }
+
 
 // --------------------------------------------------------------------
 // A-1. LINE Webhookのイベントをスマートに仕分ける
@@ -608,15 +642,44 @@ function getLineSignatureFromEvent(e) {
 }
 
 function validateSignature(bodyString, signature) {
-  if (!bodyString || !signature) return false;
+  // スクリプトプロパティからシークレットを取得
+  const secret = getRequiredScriptProperty('LINE_CHANNEL_SECRET');
+  const cleanedBody = bodyString.trim();
+  
+  let computedSignature = "";
+  try {
+    // GAS側で署名を計算
+    const byteSignature = Utilities.computeHmacSignature(
+      Utilities.MacAlgorithm.HMAC_SHA_256,
+      cleanedBody,
+      secret ? secret.trim() : "",
+      Utilities.Charset.UTF_8
+    );
+    computedSignature = Utilities.base64Encode(byteSignature);
+  } catch(e) {
+    computedSignature = "暗号化計算エラー: " + e.toString();
+  }
+  
+  // 📋 【スプレッドシートへの強制ログ書き出し】
+  // 予約台帳のスプレッドシートに「システムログ」というシートを自動作成して書き込みます
+  try {
+    const ss = SpreadsheetApp.openById(YOYAKU_SS_ID); // グローバル定数のIDを使用
+    let logSheet = ss.getSheetByName("システムログ") || ss.insertSheet("システムログ");
+    if (logSheet.getLastRow() === 0) {
+      logSheet.appendRow(["日時", "LINEからの署名", "GASが計算した署名", "プロパティ取得状態", "一致判定"]);
+    }
+    
+    const secretCheck = secret ? "取得OK (文字数: " + secret.length + ")" : "❌ 取得失敗（空っぽです）";
+    const matchCheck = (computedSignature === (signature || "").trim()) ? "⭕ 一致" : "❌ 不一致";
+    
+    logSheet.appendRow([new Date(), signature, computedSignature, secretCheck, matchCheck]);
+  } catch(err) {
+    // 万が一スプレッドシートへの書き込み自体が失敗した場合
+  }
 
-  const raw = Utilities.computeHmacSignature(
-    Utilities.MacAlgorithm.HMAC_SHA_256,
-    bodyString,
-    LINE_CHANNEL_SECRET
-  );
-  const expected = Utilities.base64Encode(raw);
-  return expected === signature;
+  // 本来の判定を返す
+  if (!signature || !secret) return false;
+  return computedSignature === signature.trim();
 }
 
 function verifyLiffToken(token) {
