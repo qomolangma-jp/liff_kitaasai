@@ -535,7 +535,7 @@
       initApp();
     };
 
-    async function initApp() {
+async function initApp() {
       hideAllScreens();
       document.getElementById("loading").classList.remove("hidden");
       setCalendarLoading(true);
@@ -583,18 +583,18 @@
             document.getElementById("userAvatar").src = liffProfile.pictureUrl;
           }
           
-          // 2. LINE IDの確定後に、初めて名簿情報と予約一覧をGASから持ってくる（バグ修正）
-// ⭕ 改善後（並列実行：同時に取得開始）
-const [profileResult, _] = await Promise.all([
-  fetchMemberProfile(liffProfile.userId),
-  fetchReservations()
-]);                                                           // 合計1.5秒で終了！
-memberProfile = profileResult;
+          // 2. 名簿情報と予約一覧を並列で取得（高速化）
+          const [profileResult, _] = await Promise.all([
+            fetchMemberProfile(liffProfile.userId),
+            fetchReservations()
+          ]);
+          memberProfile = profileResult;
           
+          // 3. カレンダー描画とローディング解除
           renderCalendar();
           setCalendarLoading(false);
           
-          // 3. すべてが揃ってから画面判定をかける
+          // 4. ステータス判定・画面表示
           applyMemberStatusUI();
           
         } catch (error) {
@@ -602,7 +602,7 @@ memberProfile = profileResult;
           showToast("❌ 初期化に失敗しました: " + error, "error");
         }
       }
-    }
+    }    
 
     function setCalendarLoading(isLoading) {
       const overlay = document.getElementById("calendarLoading");
