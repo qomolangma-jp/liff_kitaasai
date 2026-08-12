@@ -707,10 +707,23 @@ async function initApp() {
     // ----------------------------------------------------
     async function fetchReservations() {
       try {
-        const response = await fetch(GAS_URL);
-        bookedData = await response.json();
+        const response = await fetch(GAS_URL, { method: "GET", cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (!Array.isArray(data)) {
+          throw new Error("予約データ形式が不正です");
+        }
+
+        bookedData = data;
+        return true;
       } catch (error) {
+        console.error("予約データ取得エラー:", error);
+        bookedData = [];
         showToast("データ取得に失敗しました", "error");
+        return false;
       }
     }
 
@@ -718,6 +731,7 @@ function updateTimeSlots() {
   const selectedDate = document.getElementById("reserveDate").value;
   const selectedRoom = document.querySelector('input[name="room"]:checked')?.value;
   const container = document.getElementById("timeSlotContainer");
+  const safeBookedData = Array.isArray(bookedData) ? bookedData : [];
   
   container.innerHTML = "";
   
@@ -727,7 +741,7 @@ function updateTimeSlots() {
   }
 
   // 現在選択されている「日付」と「部屋」の既存予約データを取得
-  const currentBookings = bookedData.filter(b => 
+  const currentBookings = safeBookedData.filter(b => 
     b.date === selectedDate && 
     b.room === selectedRoom && 
     (b.status === "確定" || b.status === "保留")
@@ -886,14 +900,15 @@ function updateTimeSlots() {
 
     function renderReservationList() {
       const container = document.getElementById("reservationList");
+      const safeBookedData = Array.isArray(bookedData) ? bookedData : [];
       container.innerHTML = "";
 
-      if (bookedData.length === 0) {
+      if (safeBookedData.length === 0) {
         container.innerHTML = `<p class="text-slate-400 text-xs text-center py-6">現在登録されている予約はありません</p>`;
         return;
       }
 
-      const sorted = [...bookedData].sort((a, b) => new Date(b.date) - new Date(a.date));
+      const sorted = [...safeBookedData].sort((a, b) => new Date(b.date) - new Date(a.date));
 
       sorted.forEach(item => {
         const isMine = item.line_id === liffProfile.userId;
@@ -945,48 +960,54 @@ function updateTimeSlots() {
     function renderCalendar() {
       setCalendarLoading(true);
 
-      const year = currentDate.getFullYear();
-      const month = currentDate.getMonth();
+      try {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
 
-      document.getElementById("currentMonthYear").innerText = `${year}年${month + 1}月`;
+        document.getElementById("currentMonthYear").innerText = `${year}年${month + 1}月`;
 
-      const grid = document.getElementById("calendarGrid");
-      grid.innerHTML = "";
+        const grid = document.getElementById("calendarGrid");
+        grid.innerHTML = "";
 
-      const firstDay = new Date(year, month, 1);
-      const startWeekDay = firstDay.getDay();
-      const lastDay = new Date(year, month + 1, 0).getDate();
-      const prevMonthLastDay = new Date(year, month, 0).getDate();
+        const firstDay = new Date(year, month, 1);
+        const startWeekDay = firstDay.getDay();
+        const lastDay = new Date(year, month + 1, 0).getDate();
+        const prevMonthLastDay = new Date(year, month, 0).getDate();
 
-      for (let i = startWeekDay - 1; i >= 0; i--) {
-        const day = prevMonthLastDay - i;
-        const cell = createDayCell(year, month - 1, day, false);
-        grid.appendChild(cell);
+        for (let i = startWeekDay - 1; i >= 0; i--) {
+          const day = prevMonthLastDay - i;
+          const cell = createDayCell(year, month - 1, day, false);
+          grid.appendChild(cell);
+        }
+
+        for (let day = 1; day <= lastDay; day++) {
+          const cell = createDayCell(year, month, day, true);
+          grid.appendChild(cell);
+        }
+
+        const totalCells = grid.children.length;
+        const nextMonthCellsNeeded = 42 - totalCells;
+        for (let day = 1; day <= nextMonthCellsNeeded; day++) {
+          const cell = createDayCell(year, month + 1, day, false);
+          grid.appendChild(cell);
+        }
+
+        const currentMonthCells = Array.from(grid.querySelectorAll('.calendar-day-cell[data-current-month="true"]'));
+        const currentMonthDates = currentMonthCells.map(cell => cell.dataset.date);
+        const todayStr = formatDateString(new Date());
+
+        if (!selectedCalendarDate || !currentMonthDates.includes(selectedCalendarDate)) {
+          selectedCalendarDate = currentMonthDates.includes(todayStr) ? todayStr : currentMonthDates[0] || null;
+        }
+
+        highlightSelectedCalendarCell();
+        renderSelectedDayDetails(selectedCalendarDate);
+      } catch (error) {
+        console.error("カレンダー描画エラー:", error);
+        showToast("カレンダー描画に失敗しました", "error");
+      } finally {
+        setCalendarLoading(false);
       }
-
-      for (let day = 1; day <= lastDay; day++) {
-        const cell = createDayCell(year, month, day, true);
-        grid.appendChild(cell);
-      }
-
-      const totalCells = grid.children.length;
-      const nextMonthCellsNeeded = 42 - totalCells;
-      for (let day = 1; day <= nextMonthCellsNeeded; day++) {
-        const cell = createDayCell(year, month + 1, day, false);
-        grid.appendChild(cell);
-      }
-
-      const currentMonthCells = Array.from(grid.querySelectorAll('.calendar-day-cell[data-current-month="true"]'));
-      const currentMonthDates = currentMonthCells.map(cell => cell.dataset.date);
-      const todayStr = formatDateString(new Date());
-
-      if (!selectedCalendarDate || !currentMonthDates.includes(selectedCalendarDate)) {
-        selectedCalendarDate = currentMonthDates.includes(todayStr) ? todayStr : currentMonthDates[0] || null;
-      }
-
-      highlightSelectedCalendarCell();
-      renderSelectedDayDetails(selectedCalendarDate);
-      setCalendarLoading(false);
     }
 
     function changeMonth(delta) {
@@ -1062,11 +1083,12 @@ function updateTimeSlots() {
     }
 
     function getDayRoomSlotSummary(dateStr) {
+      const safeBookedData = Array.isArray(bookedData) ? bookedData : [];
       const summary = {};
       ROOM_TYPES.forEach(roomName => {
         summary[roomName] = {};
         TIME_SLOTS_MASTER.forEach(slotName => {
-          summary[roomName][slotName] = bookedData.some(r =>
+          summary[roomName][slotName] = safeBookedData.some(r =>
             r.date === dateStr &&
             r.room === roomName &&
             r.time_slot === slotName &&

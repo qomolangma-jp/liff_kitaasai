@@ -3,10 +3,10 @@
 // ====================================================================
 
 // 1. LINE公式アカウントの「チャネルアクセストークン」
-const LINE_CHANNEL_ACCESS_TOKEN = getRequiredScriptProperty('LINE_CHANNEL_ACCESS_TOKEN');
+const LINE_CHANNEL_ACCESS_TOKEN = getScriptProperty('LINE_CHANNEL_ACCESS_TOKEN', '');
 
 // ★追加：LINE公式アカウントの「チャネルシークレット」もプロパティ化
-const LINE_CHANNEL_SECRET = getRequiredScriptProperty('LINE_CHANNEL_SECRET');
+const LINE_CHANNEL_SECRET = getScriptProperty('LINE_CHANNEL_SECRET', '');
 
 // 2. 予約台帳シートが入っているスプレッドシートのID
 const YOYAKU_SS_ID = getRequiredScriptProperty('YOYAKU_SS_ID'); // ※名簿やチャットと同じであればそのままでOK
@@ -17,7 +17,7 @@ const MEIBO_SS_ID = getRequiredScriptProperty('MEIBO_SS_ID'); // ※お使いの
 const MEIBO_SHEET_NAME = '名簿';
 
 // 4. チャットログ（履歴）を保存するスプレッドシートのID
-const CHAT_SS_ID = getRequiredScriptProperty('CHAT_SS_ID');
+const CHAT_SS_ID = getScriptProperty('CHAT_SS_ID', '');
 const CHAT_SHEET_NAME = 'chat';
 
 /**
@@ -34,6 +34,14 @@ function getRequiredScriptProperty(key) {
     throw new Error('Script property "' + key + '" is not set.');
   }
   return value.trim();
+}
+
+function getScriptProperty(key, defaultValue) {
+  const value = PropertiesService.getScriptProperties().getProperty(key);
+  if (value === null || value === undefined || value.toString().trim() === '') {
+    return defaultValue;
+  }
+  return value.toString().trim();
 }
 
 // ====================================================================
