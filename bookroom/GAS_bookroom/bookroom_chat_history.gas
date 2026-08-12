@@ -37,84 +37,87 @@ function getRequiredScriptProperty(key) {
 }
 
 // ====================================================================
-// 1. GETリクエスト（カレンダー、LIFFアプリ用の空き状況データ取得）
+// 1. GETリクエスト（高速化版：カレンダー、LIFFアプリ用のデータ取得）
 // ====================================================================
 function doGet(e) {
-  // --- 🌟 追加された住民名簿チェック処理 🌟 ---
+  // --- 🌟 住民名簿チェック処理 🌟 ---
   if (e && e.parameter && e.parameter.type === "user" && e.parameter.uid) {
-    const uid = e.parameter.uid.toString().trim(); // フロントから送られてきたIDをトリム
+    const uid = e.parameter.uid.toString().trim().toLowerCase();
     
     try {
-      const meiboSS = SpreadsheetApp.openById(MEIBO_SS_ID);
-      const mSheet = meiboSS.getSheetByName('名簿');
-      const mData = mSheet.getDataRange().getValues();
-      const header = mData[0];
+      // getDisplayValues() を使用してすべての値を文字列として高速一括取得
+      const mSheet = SpreadsheetApp.openById(MEIBO_SS_ID).getSheetByName(MEIBO_SHEET_NAME);
+      const mData = mSheet.getDataRange().getDisplayValues();
+      if (mData.length === 0) return createJsonResponse({ isRegistered: false });
+
+      const header = mData[0].map(h => h.trim().toLowerCase());
       
-      // 1. ヘッダー名に含まれるスペースや改行を自動でトリムして小文字化
-      const cleanHeader = header.map(h => h.toString().trim().toLowerCase());
-      
-      // 2. インデックスの検索（これで前後にスペースがあっても見逃しません）
-      const idCol = cleanHeader.indexOf("line_id");
-      const lastNameCol = cleanHeader.indexOf("name_2nd");
-      const firstNameCol = cleanHeader.indexOf("name_1st");
-      const statusCol = cleanHeader.indexOf("status"); // status列
+      const idCol = header.indexOf("line_id");
+      const lastNameCol = header.indexOf("name_2nd");
+      const firstNameCol = header.indexOf("name_1st");
+      const statusCol = header.indexOf("status");
       
       if (idCol === -1) {
-        console.error("❌ 名簿シートに「line_id」列が見つかりません。");
-        return ContentService.createTextOutput(JSON.stringify({ isRegistered: false, error: "line_id column missing" }))
-          .setMimeType(ContentService.MimeType.JSON);
+        return createJsonResponse({ isRegistered: false, error: "line_id column missing" });
       }
       
-      // 3. 一致判定を trim() と小文字化を合わせて完全強化（ノイズがあっても一致させます）
-      const row = mData.find(r => {
-        if (!r[idCol]) return false;
-        return r[idCol].toString().trim().toLowerCase() === uid.toLowerCase();
-      });
+      // 対象行を検索
+      const row = mData.find((r, idx) => idx > 0 && r[idCol] && r[idCol].trim().toLowerCase() === uid);
       
       if (!row) {
-        // 名簿に line_id が登録されていない場合
-        console.warn("⚠️ line_id: " + uid + " は名簿データ内に見つかりませんでした。");
-        return ContentService.createTextOutput(JSON.stringify({ isRegistered: false }))
-          .setMimeType(ContentService.MimeType.JSON);
+        return createJsonResponse({ isRegistered: false });
       }
       
-      const fullName = (row[lastNameCol] || "") + " " + (row[firstNameCol] || "");
-      const status = row[statusCol] ? row[statusCol].toString().trim().toUpperCase() : "OK";
+      const lastName = lastNameCol !== -1 ? row[lastNameCol] : "";
+      const firstName = firstNameCol !== -1 ? row[firstNameCol] : "";
+      const fullName = (lastName + " " + firstName).trim();
+      const status = (statusCol !== -1 && row[statusCol]) ? row[statusCol].trim().toUpperCase() : "OK";
       
-      // 照合成功
-      console.log("🟢 合致しました: " + fullName + " (" + status + ")");
-      return ContentService.createTextOutput(JSON.stringify({
+      return createJsonResponse({
         isRegistered: true,
-        fullName: fullName.trim(),
-        status: status // "OK" または "NG"
-      })).setMimeType(ContentService.MimeType.JSON);
+        fullName: fullName,
+        status: status
+      });
       
     } catch(err) {
       console.error("名簿判定エラー: " + err.toString());
-      return ContentService.createTextOutput(JSON.stringify({ isRegistered: true, fullName: "通信エラー", status: "OK" }))
-        .setMimeType(ContentService.MimeType.JSON);
+      return createJsonResponse({ isRegistered: true, fullName: "通信エラー", status: "OK" });
     }
   }
   
-  // --- 📅 従来の予約一覧を取得する処理 (変更なし) ---
-  const sheet = SpreadsheetApp.openById(YOYAKU_SS_ID).getSheetByName(YOYAKU_SHEET_NAME);
-  const data = sheet.getDataRange().getValues();
-  
-  const reservations = [];
-  for (let i = 1; i < data.length; i++) {
-    const status = data[i][7];
-    if (status === "確定" || status === "保留") { 
-      reservations.push({
-        date: Utilities.formatDate(new Date(data[i][3]), "JST", "yyyy-MM-dd"),
-        time_slot: data[i][4],
-        room: data[i][5],
-        line_id: data[i][1],
-        name: data[i][2],
-        status: status
-      });
+  // --- 📅 予約一覧を取得する処理 (高速化) ---
+  try {
+    const sheet = SpreadsheetApp.openById(YOYAKU_SS_ID).getSheetByName(YOYAKU_SHEET_NAME);
+    // getDisplayValues() を使用：日付のUtilities.formatDate計算コストを排除
+    const displayData = sheet.getDataRange().getDisplayValues();
+    
+    const reservations = [];
+    for (let i = 1; i < displayData.length; i++) {
+      const row = displayData[i];
+      const status = row[7]; // H列
+      
+      if (status === "確定" || status === "保留") { 
+        reservations.push({
+          date: row[3],      // D列（スプレッドシート上の表示文字列「yyyy-MM-dd」をそのまま使用）
+          time_slot: row[4], // E列
+          room: row[5],      // F列
+          line_id: row[1],   // B列
+          name: row[2],      // C列
+          status: status
+        });
+      }
     }
+    return createJsonResponse(reservations);
+
+  } catch(err) {
+    console.error("予約一覧取得エラー: " + err.toString());
+    return createJsonResponse([]);
   }
-  return ContentService.createTextOutput(JSON.stringify(reservations))
+}
+
+// レスポンス作成用の軽量ヘルパー関数
+function createJsonResponse(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -207,7 +210,7 @@ function handleLineWebhook(events) {
       const timestamp = new Date(event.timestamp);
       
       // 名簿またはLINE Profile APIから本名・表示名を取得
-      const memberInfo = getMemberInfo(userId);
+      const memberInfo = getMemberInfoWithCache(userId);
       const displayName = memberInfo && memberInfo.fullName ? memberInfo.fullName : getLineDisplayName(userId);
 
       chatRows.push([
@@ -343,7 +346,7 @@ function handleLiffSubmission(params) {
     }
   }
   
-  const memberInfo = getMemberInfo(params.line_id);
+  const memberInfo = getMemberInfoWithCache(params.line_id);
   let realName = memberInfo && memberInfo.fullName ? memberInfo.fullName : params.line_name;
   const requestText = (params.request || "").toString().trim() || "なし";
   
@@ -404,7 +407,7 @@ function getMemberInfo(uid) {
   if (!uid) return null;
   try {
     const meiboSS = SpreadsheetApp.openById(MEIBO_SS_ID);
-    const mSheet = meiboSS.getSheetByName(MEIBO_SHEET_NAME);
+    const mSheet = getMeiboSheet();
     const mData = mSheet.getDataRange().getValues();
     const header = mData[0];
     
@@ -422,6 +425,31 @@ function getMemberInfo(uid) {
     return null;
   }
 }
+
+function getMemberInfoWithCache(uid) {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get("user_" + uid);
+  if (cached) {
+    return JSON.parse(cached); // キャッシュがあればシートを見に行かない！
+  }
+
+  // キャッシュがない場合のみシートから取得
+  const info = getMemberInfo(uid); 
+  if (info) {
+    cache.put("user_" + uid, JSON.stringify(info), 600); // 10分間保存
+  }
+  return info;
+}
+
+// ⭕ 改善後: キャッシュ（グローバル保持）またはまとめて1回取得
+let _meiboSheetCache = null;
+function getMeiboSheet() {
+  if (!_meiboSheetCache) {
+    _meiboSheetCache = SpreadsheetApp.openById(MEIBO_SS_ID).getSheetByName(MEIBO_SHEET_NAME);
+  }
+  return _meiboSheetCache;
+}
+
 
 // アラート管理者の line_id リストを取得する
 function getAdmins() {

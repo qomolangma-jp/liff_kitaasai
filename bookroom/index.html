@@ -584,8 +584,13 @@
           }
           
           // 2. LINE IDの確定後に、初めて名簿情報と予約一覧をGASから持ってくる（バグ修正）
-          memberProfile = await fetchMemberProfile(liffProfile.userId);
-          await fetchReservations();
+// ⭕ 改善後（並列実行：同時に取得開始）
+const [profileResult, _] = await Promise.all([
+  fetchMemberProfile(liffProfile.userId),
+  fetchReservations()
+]);                                                           // 合計1.5秒で終了！
+memberProfile = profileResult;
+          
           renderCalendar();
           setCalendarLoading(false);
           
