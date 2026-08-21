@@ -3,7 +3,7 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-	<title>北浅井町内会 デジタル回覧板い</title>
+	<title>北浅井町内会 デジタル回覧板u</title>
 	<script src="https://cdn.tailwindcss.com"></script>
 	<link rel="stylesheet" href="../common/app-shell.css">
 	<script src="../common/member-check.js"></script>
@@ -213,11 +213,15 @@
 		}
 
 		function getLocalTestStatus() {
-			return localStorage.getItem(LOCAL_MEMBER_STATUS_KEY) || 'ok';
+			const raw = localStorage.getItem(LOCAL_MEMBER_STATUS_KEY) || 'ok';
+			if (raw === 'unregistered') return 'not_registered';
+			if (raw === 'ng') return 'suspended';
+			return raw;
 		}
 
 		function setLocalTestStatus(status) {
-			localStorage.setItem(LOCAL_MEMBER_STATUS_KEY, status);
+			const normalized = status === 'unregistered' ? 'not_registered' : status === 'ng' ? 'suspended' : status;
+			localStorage.setItem(LOCAL_MEMBER_STATUS_KEY, normalized);
 		}
 
 		function formatYmToJa(ym) {
@@ -397,6 +401,7 @@
 				const testStatus = getLocalTestStatus();
 				if (testStatus === 'not_registered') {
 					return {
+						isRegistered: false,
 						status: 'not_registered',
 						memberName: '未登録ユーザー',
 						registerFormUrl: REGISTER_FORM_URL
@@ -404,12 +409,14 @@
 				}
 				if (testStatus === 'suspended') {
 					return {
+						isRegistered: true,
 						status: 'suspended',
 						memberName: '利用制限ユーザー',
 						registerFormUrl: REGISTER_FORM_URL
 					};
 				}
 				return {
+					isRegistered: true,
 					status: 'ok',
 					memberName: '北浅井 テスト住民',
 					registerFormUrl: REGISTER_FORM_URL
@@ -426,12 +433,13 @@
 
 			const data = raw && raw.data ? raw.data : raw;
 			const normalized = MemberCheck.normalizeMemberCheckResponse(raw);
-			const status = normalized.status;
+			const status = normalized.status || MemberCheck.normalizeMemberStatus(data && data.status);
 
 			return {
+				isRegistered: normalized.isRegistered !== undefined ? normalized.isRegistered : status !== 'not_registered',
 				status,
-				memberName: normalized.fullName || data.member_name || data.display_name || profile.displayName || '町民',
-				registerFormUrl: normalized.registerFormUrl || data.register_form_url || REGISTER_FORM_URL
+				memberName: normalized.fullName || (data && (data.member_name || data.display_name)) || profile.displayName || '町民',
+				registerFormUrl: normalized.registerFormUrl || (data && data.register_form_url) || REGISTER_FORM_URL
 			};
 		}
 
@@ -697,7 +705,7 @@
 				el.userAvatar.src = state.profile.pictureUrl || 'https://placehold.jp/96x96.png';
 				el.registerLink.href = state.member.registerFormUrl || REGISTER_FORM_URL;
 
-				if (state.member.status === 'not_registered') {
+				if (!state.member.isRegistered || state.member.status === 'not_registered') {
 					switchMainState('not_registered');
 					return;
 				}
