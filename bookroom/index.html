@@ -6,10 +6,12 @@
   <title>北浅井公民館 予約＆空き状況システム</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="../common/app-shell.css">
   <!-- FontAwesome for icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- LINE LIFF SDK -->
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="../common/ui-patterns.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -131,10 +133,11 @@
     }
   </style>
 </head>
-<body class="h-full flex flex-col justify-start items-center p-0 sm:p-4 overflow-x-hidden">
+<body class="h-full app-page overflow-x-hidden">
 
-  <!-- 🎛️ 新デザイン：画面切り替えカプセル型タブ（ヘッダー） -->
-  <div class="w-full max-w-[480px] bg-slate-900 px-4 pt-4 pb-2 rounded-t-2xl sm:rounded-t-3xl shadow-lg z-10">
+  <div class="app-shell app-shell--desktop">
+    <!-- 🎛️ 新デザイン：画面切り替えカプセル型タブ（ヘッダー） -->
+    <div class="app-header">
     <div class="bg-slate-800/80 p-1 rounded-xl flex relative border border-slate-700 shadow-inner">
       <!-- 予約フォームタブ -->
       <button 
@@ -167,9 +170,6 @@
     </div>
   </div>
 
-  <!-- メインコンテナ：スマホサイズ制限（max-width: 480px）、中央配置、陰影付きカード風 -->
-  <div class="w-full max-w-[480px] min-h-screen sm:min-h-[800px] sm:max-h-[85vh] sm:rounded-b-3xl bg-white shadow-2xl flex flex-col overflow-hidden relative border border-slate-100">
-    
     <!-- ========================================== -->
     <!-- 📱 1. 予約申請フォーム CANVAS -->
     <!-- ========================================== -->
@@ -460,6 +460,7 @@
 
   </div>
 
+  <script src="../common/member-check.js"></script>
   <script>
     // ----------------------------------------------------
     // 設定
@@ -617,24 +618,22 @@ async function initApp() {
       if (isLocal) {
         const testStatus = localStorage.getItem("kitaasai_local_test_member_status") || "ok";
         if (testStatus === "unregistered") {
-          return { isRegistered: false };
+          return { isRegistered: false, status: "not_registered" };
         } else if (testStatus === "ng") {
-          return { isRegistered: true, fullName: "制限された町民", status: "NG" };
+          return { isRegistered: true, fullName: "制限された町民", status: "suspended" };
         } else {
-          return { isRegistered: true, fullName: "北浅井 太郎", status: "OK" };
+          return { isRegistered: true, fullName: "北浅井 太郎", status: "ok" };
         }
       }
 
       try {
         const response = await fetch(`${GAS_URL}?type=user&uid=${uid}`);
         const result = await response.json();
-        // 実機デバッグ用：コンソールにGASから返ってきた実際のデータを表示
         console.log("【名簿照合成功】GAS返却データ:", result);
-        return result;
+        return MemberCheck.normalizeMemberCheckResponse(result);
       } catch (error) {
         console.error("名簿データ取得エラー:", error);
-        // 通信に失敗した場合でも「登録あり」にして予約を遮断しないフォールバック
-        return { isRegistered: true, fullName: liffProfile ? liffProfile.displayName : "ゲスト", status: "OK" };
+        return { isRegistered: true, fullName: liffProfile ? liffProfile.displayName : "ゲスト", status: "ok" };
       }
     }
 
@@ -643,24 +642,25 @@ async function initApp() {
       document.getElementById("loading").classList.add("hidden");
       hideAllScreens();
 
+      const normalizedStatus = MemberCheck.normalizeMemberStatus(memberProfile && memberProfile.status);
+
       // 1. 名簿未登録の場合
-      if (!memberProfile || !memberProfile.isRegistered) {
+      if (!memberProfile || !memberProfile.isRegistered || normalizedStatus === "not_registered") {
         console.warn("⚠️ 町民名簿にLINE IDが未登録のため、登録誘導画面を表示します。");
         document.getElementById("notRegisteredScreen").classList.remove("hidden");
         return;
       }
 
-      // 2. 利用停止(statusがNG)の場合
-      // ローカル環境では制限画面を表示しない
-      if (!isLocal && memberProfile.status === "NG") {
-        console.warn("⚠️ 登録はありますが、statusが「NG」のため利用制限画面を表示します。");
+      // 2. 利用停止(statusがNG / suspended)の場合
+      if (!isLocal && normalizedStatus === "suspended") {
+        console.warn("⚠️ 登録はありますが、statusが利用停止のため利用制限画面を表示します。");
         document.getElementById("suspendedScreen").classList.remove("hidden");
         return;
       }
 
       // 3. 正常に名簿確認できた場合 ➔ 予約画面をアクティブ化
-      console.log("🟢 住民名簿合致: " + memberProfile.fullName + " 様 (ステータス: " + memberProfile.status + ")");
-      document.getElementById("userName").innerText = memberProfile.fullName;
+      console.log("🟢 住民名簿合致: " + (memberProfile.fullName || "町民") + " 様 (ステータス: " + normalizedStatus + ")");
+      document.getElementById("userName").innerText = memberProfile.fullName || "町民";
       document.getElementById("app").classList.remove("hidden");
 
       setupEventListeners();
@@ -1300,7 +1300,7 @@ async function submitReservation(e) {
       const toastIcon = document.getElementById("toastIcon");
 
       toastMessage.innerText = message;
-      
+
       if (type === "success") {
         toastIcon.className = "w-8 h-8 rounded-full bg-brand-500/20 text-brand-500 flex items-center justify-center";
         toastIcon.innerHTML = `<i class="fa-solid fa-check"></i>`;
@@ -1312,7 +1312,8 @@ async function submitReservation(e) {
       toast.classList.remove("translate-y-20", "opacity-0", "pointer-events-none");
       toast.classList.add("translate-y-0", "opacity-100");
 
-      setTimeout(() => {
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => {
         hideToast();
       }, 4000);
     }

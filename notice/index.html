@@ -5,6 +5,8 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 	<title>北浅井町内会 デジタル回覧板あああ</title>
 	<script src="https://cdn.tailwindcss.com"></script>
+	<link rel="stylesheet" href="../common/app-shell.css">
+	<script src="../common/ui-patterns.js"></script>
 	<script>
 		tailwind.config = {
 			theme: {
@@ -25,24 +27,27 @@
 	</script>
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 	<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+	<script src="../common/ui-helpers.js"></script>
 </head>
-<body class="h-full flex flex-col justify-start items-center p-0 sm:p-4 overflow-x-hidden">
-	<main class="w-full max-w-[480px] min-h-screen sm:min-h-[800px] sm:max-h-[85vh] sm:rounded-b-3xl bg-white shadow-2xl flex flex-col overflow-hidden relative border border-slate-100">
-		<header class="bg-slate-900 px-4 pt-4 pb-3 shrink-0">
-			<div class="w-full bg-slate-800 rounded-full p-1 flex items-center gap-1">
+<body class="h-full app-page overflow-x-hidden">
+	<main class="app-shell app-shell--desktop">
+		<header class="app-header">
+			<div class="app-header__tabbar">
 				<button
 					id="tabBtnCurrent"
 					type="button"
-					class="flex-1 rounded-full px-3 py-2 text-xs font-bold tracking-wide transition-all duration-200 bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow"
+					class="app-header__tab is-active"
 				>
-					📌 今月の回覧・配布物
+					<i class="fa-solid fa-newspaper"></i>
+					<span>今月の回覧・配布物</span>
 				</button>
 				<button
 					id="tabBtnArchive"
 					type="button"
-					class="flex-1 rounded-full px-3 py-2 text-xs font-bold tracking-wide transition-all duration-200 text-slate-400"
+					class="app-header__tab"
 				>
-					📚 バックナンバー
+					<i class="fa-solid fa-book-open"></i>
+					<span>バックナンバー</span>
 				</button>
 			</div>
 			<div id="devPanel" class="hidden mt-3 rounded-xl bg-slate-700/80 border border-slate-600 p-2">
@@ -55,61 +60,61 @@
 			</div>
 		</header>
 
-		<section class="bg-gradient-to-r from-brand-600 to-brand-700 text-white px-4 py-3 shrink-0">
-			<div class="flex items-center justify-between gap-3">
-				<h1 class="text-sm font-bold flex items-center gap-2">
+		<section class="app-toolbar">
+			<div class="app-toolbar__inner">
+				<h1 class="app-toolbar__title">
 					<i class="fa-solid fa-newspaper"></i>
-					北浅井町内会 デジタル回覧板
+					<span>北浅井町内会 デジタル回覧板</span>
 				</h1>
-				<span id="devBadge" class="hidden text-[10px] font-bold px-2 py-1 rounded-full bg-white/20 border border-white/30">LOCAL MODE</span>
+				<span id="devBadge" class="app-badge hidden">LOCAL MODE</span>
 			</div>
 		</section>
 
-		<section id="loading" class="flex-1 flex items-center justify-center p-6">
-			<div class="text-center">
-				<div class="w-12 h-12 border-4 border-brand-100 border-t-brand-600 rounded-full animate-spin mx-auto"></div>
-				<p class="mt-4 text-sm font-semibold text-slate-600">住民名簿と照合中...</p>
+		<section id="loading" class="app-screen app-screen--centered">
+			<div class="app-loading">
+				<div class="app-loading__spinner"></div>
+				<p class="text-sm font-semibold text-slate-600">住民名簿と照合中...</p>
 			</div>
 		</section>
 
-		<section id="notRegisteredScreen" class="hidden flex-1 overflow-y-auto p-6">
-			<div class="m-auto w-full max-w-sm rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">
-				<div class="text-5xl text-amber-500 mb-3">
+		<section id="notRegisteredScreen" class="hidden app-screen app-screen--centered">
+			<div class="app-status-card">
+				<div class="app-status-card__icon text-amber-500">
 					<i class="fa-regular fa-face-frown-open"></i>
 				</div>
-				<h2 class="text-lg font-bold text-amber-900">名簿への登録が必要です</h2>
-				<p class="mt-2 text-sm text-amber-800">町内会のデジタル回覧板を利用するには、事前の住民登録が必要です。</p>
+				<h2 class="app-status-card__title">名簿への登録が必要です</h2>
+				<p class="app-status-card__text">町内会のデジタル回覧板を利用するには、事前の住民登録が必要です。</p>
 				<a
 					id="registerLink"
 					href="#"
 					target="_blank"
 					rel="noopener noreferrer"
-					class="mt-5 inline-flex items-center justify-center gap-2 w-full rounded-xl bg-amber-500 hover:bg-amber-600 text-white px-4 py-3 text-sm font-bold"
+					class="app-cta app-cta--warning mt-4"
 				>
 					<i class="fa-solid fa-up-right-from-square"></i>
-					登録フォームを開く
+					<span>登録フォームを開く</span>
 				</a>
 			</div>
 		</section>
 
-		<section id="suspendedScreen" class="hidden flex-1 overflow-y-auto p-6">
-			<div class="m-auto w-full max-w-sm rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center">
-				<div class="text-5xl text-rose-500 mb-3">
+		<section id="suspendedScreen" class="hidden app-screen app-screen--centered">
+			<div class="app-status-card app-status-card--danger">
+				<div class="app-status-card__icon text-rose-500">
 					<i class="fa-solid fa-triangle-exclamation"></i>
 				</div>
-				<h2 class="text-lg font-bold text-rose-900">現在ご利用できません</h2>
-				<p class="mt-2 text-sm text-rose-800">利用制限が設定されています。詳細は町内会管理者へお問い合わせください。</p>
+				<h2 class="app-status-card__title">現在ご利用できません</h2>
+				<p class="app-status-card__text">利用制限が設定されています。詳細は町内会管理者へお問い合わせください。</p>
 			</div>
 		</section>
 
-		<section id="app" class="hidden flex-1 overflow-y-auto">
-			<div class="p-4 space-y-4">
-				<article class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-					<div class="flex items-center gap-3">
-						<img id="userAvatar" src="https://placehold.jp/96x96.png" alt="ユーザーアバター" class="w-12 h-12 rounded-full border border-slate-200 object-cover bg-white">
+		<section id="app" class="hidden app-screen">
+			<div class="app-section">
+				<article class="app-card app-card--soft">
+					<div class="app-user-row">
+						<img id="userAvatar" src="https://placehold.jp/96x96.png" alt="ユーザーアバター" class="app-user-row__avatar">
 						<div>
-							<p class="text-[11px] text-slate-500">ログイン中の町民</p>
-							<p class="text-sm font-bold text-slate-800"><span id="userName">-</span> 様</p>
+							<p class="app-user-row__label">ログイン中の町民</p>
+							<p class="app-user-row__name"><span id="userName">-</span> 様</p>
 						</div>
 					</div>
 				</article>
@@ -238,10 +243,12 @@
 		}
 
 		function switchMainState(next) {
-			el.loading.classList.toggle('hidden', next !== 'loading');
-			el.notRegisteredScreen.classList.toggle('hidden', next !== 'not_registered');
-			el.suspendedScreen.classList.toggle('hidden', next !== 'suspended');
-			el.app.classList.toggle('hidden', next !== 'app');
+			AppUi.setScreenState({
+				loading: el.loading,
+				notRegistered: el.notRegisteredScreen,
+				suspended: el.suspendedScreen,
+				app: el.app
+			}, next);
 		}
 
 		function updateTabs() {
@@ -250,28 +257,22 @@
 			el.canvasArchive.classList.toggle('hidden', isCurrent);
 
 			el.tabBtnCurrent.className = isCurrent
-				? 'flex-1 rounded-full px-3 py-2 text-xs font-bold tracking-wide transition-all duration-200 bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow'
-				: 'flex-1 rounded-full px-3 py-2 text-xs font-bold tracking-wide transition-all duration-200 text-slate-400';
+				? 'app-header__tab is-active'
+				: 'app-header__tab';
 
 			el.tabBtnArchive.className = !isCurrent
-				? 'flex-1 rounded-full px-3 py-2 text-xs font-bold tracking-wide transition-all duration-200 bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow'
-				: 'flex-1 rounded-full px-3 py-2 text-xs font-bold tracking-wide transition-all duration-200 text-slate-400';
+				? 'app-header__tab is-active'
+				: 'app-header__tab';
 		}
 
 		function showToast(message, type = 'info') {
-			const palette = {
-				info: 'bg-slate-900 text-white',
-				success: 'bg-emerald-600 text-white',
-				warning: 'bg-amber-500 text-white',
-				error: 'bg-rose-600 text-white'
-			};
-			el.toastInner.className = `rounded-xl px-4 py-3 text-sm font-semibold shadow-xl ${palette[type] || palette.info}`;
-			el.toastInner.textContent = message;
-			el.toast.classList.remove('hidden');
-			clearTimeout(showToast.timer);
-			showToast.timer = setTimeout(() => {
-				el.toast.classList.add('hidden');
-			}, 2600);
+			AppUi.showToast({
+				toast: el.toast,
+				toastInner: el.toastInner,
+				message,
+				type,
+				duration: 2600
+			});
 		}
 
 		async function gasGet(params = {}) {
@@ -423,17 +424,13 @@
 			});
 
 			const data = raw && raw.data ? raw.data : raw;
-			const status = String(data.status || data.member_status || '').toLowerCase();
-			const normalizedStatus = status === 'ok' || status === 'active'
-				? 'ok'
-				: status === 'suspended' || status === 'restricted'
-					? 'suspended'
-					: 'not_registered';
+			const normalized = MemberCheck.normalizeMemberCheckResponse(raw);
+			const status = normalized.status;
 
 			return {
-				status: normalizedStatus,
-				memberName: data.member_name || data.display_name || profile.displayName || '町民',
-				registerFormUrl: data.register_form_url || REGISTER_FORM_URL
+				status,
+				memberName: normalized.fullName || data.member_name || data.display_name || profile.displayName || '町民',
+				registerFormUrl: normalized.registerFormUrl || data.register_form_url || REGISTER_FORM_URL
 			};
 		}
 
@@ -634,27 +631,13 @@
 			el.devPanel.classList.remove('hidden');
 			el.devBadge.classList.remove('hidden');
 
-			const activeClass = 'px-3 py-1.5 text-xs rounded-lg font-semibold text-white ring-2 ring-white/60';
-			const mapClass = {
-				ok: {
-					on: `bg-emerald-500 ${activeClass}`,
-					off: 'px-3 py-1.5 text-xs rounded-lg bg-slate-600 text-slate-200 font-semibold'
-				},
-				not_registered: {
-					on: `bg-amber-500 ${activeClass}`,
-					off: 'px-3 py-1.5 text-xs rounded-lg bg-slate-600 text-slate-200 font-semibold'
-				},
-				suspended: {
-					on: `bg-rose-500 ${activeClass}`,
-					off: 'px-3 py-1.5 text-xs rounded-lg bg-slate-600 text-slate-200 font-semibold'
-				}
-			};
-
 			const setButtonStyles = (selected) => {
 				el.devPanel.querySelectorAll('[data-dev-state]').forEach((btn) => {
 					const mode = btn.dataset.devState;
-					if (!mapClass[mode]) return;
-					btn.className = mode === selected ? mapClass[mode].on : mapClass[mode].off;
+					const active = mode === selected;
+					btn.className = active
+						? 'px-3 py-1.5 text-xs rounded-lg bg-emerald-500 text-white font-semibold ring-2 ring-white/60'
+						: 'px-3 py-1.5 text-xs rounded-lg bg-slate-600 text-slate-200 font-semibold';
 				});
 			};
 
