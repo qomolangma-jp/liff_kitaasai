@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="ja" class="h-full bg-slate-100">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+	<title>北浅井町内会 デジタル回覧板</title>
+	<script src="https://cdn.tailwindcss.com"></script>
+	<script>
+		tailwind.config = {
+			theme: {
+				extend: {
+					colors: {
+						brand: {
+							50: '#f0fdf4',
+							100: '#dcfce7',
+							200: '#bbf7d0',
+							500: '#22c55e',
+							600: '#16a34a',
+							700: '#15803d'
+						}
+					}
+				}
+			}
+		};
+	</script>
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+	<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+</head>
+<body class="h-full flex flex-col justify-start items-center p-0 sm:p-4 overflow-x-hidden">
+	<main class="w-full max-w-[480px] min-h-screen sm:min-h-[800px] sm:max-h-[85vh] sm:rounded-b-3xl bg-white shadow-2xl flex flex-col overflow-hidden relative border border-slate-100">
+		<header class="bg-slate-900 px-4 pt-4 pb-3 shrink-0">
+			<div class="w-full bg-slate-800 rounded-full p-1 flex items-center gap-1">
+				<button
+					id="tabBtnCurrent"
+					type="button"
+					class="flex-1 rounded-full px-3 py-2 text-xs font-bold tracking-wide transition-all duration-200 bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow"
+				>
+					📌 今月の回覧・配布物
+				</button>
+				<button
+					id="tabBtnArchive"
+					type="button"
+					class="flex-1 rounded-full px-3 py-2 text-xs font-bold tracking-wide transition-all duration-200 text-slate-400"
+				>
+					📚 バックナンバー
+				</button>
+			</div>
+			<div id="devPanel" class="hidden mt-3 rounded-xl bg-slate-700/80 border border-slate-600 p-2">
+				<p class="text-[11px] text-slate-200 mb-2">開発者パネル (状態テスト)</p>
+				<div class="flex flex-wrap gap-2">
+					<button type="button" data-dev-state="ok" class="px-3 py-1.5 text-xs rounded-lg bg-emerald-500 text-white font-semibold">正常(OK)</button>
+					<button type="button" data-dev-state="not_registered" class="px-3 py-1.5 text-xs rounded-lg bg-amber-500 text-white font-semibold">未登録</button>
+					<button type="button" data-dev-state="suspended" class="px-3 py-1.5 text-xs rounded-lg bg-rose-500 text-white font-semibold">利用制限</button>
+				</div>
+			</div>
+		</header>
+
+		<section class="bg-gradient-to-r from-brand-600 to-brand-700 text-white px-4 py-3 shrink-0">
+			<div class="flex items-center justify-between gap-3">
+				<h1 class="text-sm font-bold flex items-center gap-2">
+					<i class="fa-solid fa-newspaper"></i>
+					北浅井町内会 デジタル回覧板
+				</h1>
+				<span id="devBadge" class="hidden text-[10px] font-bold px-2 py-1 rounded-full bg-white/20 border border-white/30">LOCAL MODE</span>
+			</div>
+		</section>
+
+		<section id="loading" class="flex-1 flex items-center justify-center p-6">
+			<div class="text-center">
+				<div class="w-12 h-12 border-4 border-brand-100 border-t-brand-600 rounded-full animate-spin mx-auto"></div>
+				<p class="mt-4 text-sm font-semibold text-slate-600">住民名簿と照合中...</p>
+			</div>
+		</section>
+
+		<section id="notRegisteredScreen" class="hidden flex-1 overflow-y-auto p-6">
+			<div class="m-auto w-full max-w-sm rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">
+				<div class="text-5xl text-amber-500 mb-3">
+					<i class="fa-regular fa-face-frown-open"></i>
+				</div>
+				<h2 class="text-lg font-bold text-amber-900">名簿への登録が必要です</h2>
+				<p class="mt-2 text-sm text-amber-800">町内会のデジタル回覧板を利用するには、事前の住民登録が必要です。</p>
+				<a
+					id="registerLink"
+					href="#"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="mt-5 inline-flex items-center justify-center gap-2 w-full rounded-xl bg-amber-500 hover:bg-amber-600 text-white px-4 py-3 text-sm font-bold"
+				>
+					<i class="fa-solid fa-up-right-from-square"></i>
+					登録フォームを開く
+				</a>
+			</div>
+		</section>
+
+		<section id="suspendedScreen" class="hidden flex-1 overflow-y-auto p-6">
+			<div class="m-auto w-full max-w-sm rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center">
+				<div class="text-5xl text-rose-500 mb-3">
+					<i class="fa-solid fa-triangle-exclamation"></i>
+				</div>
+				<h2 class="text-lg font-bold text-rose-900">現在ご利用できません</h2>
+				<p class="mt-2 text-sm text-rose-800">利用制限が設定されています。詳細は町内会管理者へお問い合わせください。</p>
+			</div>
+		</section>
+
+		<section id="app" class="hidden flex-1 overflow-y-auto">
+			<div class="p-4 space-y-4">
+				<article class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+					<div class="flex items-center gap-3">
+						<img id="userAvatar" src="https://placehold.jp/96x96.png" alt="ユーザーアバター" class="w-12 h-12 rounded-full border border-slate-200 object-cover bg-white">
+						<div>
+							<p class="text-[11px] text-slate-500">ログイン中の町民</p>
+							<p class="text-sm font-bold text-slate-800"><span id="userName">-</span> 様</p>
+						</div>
+					</div>
+				</article>
+
+				<div id="canvasCurrent" class="space-y-4">
+					<article class="rounded-2xl border border-brand-100 bg-brand-50 p-3">
+						<p class="text-xs text-slate-600">対象号</p>
+						<p id="currentMonthLabel" class="text-lg font-bold text-brand-700 mt-1">-</p>
+					</article>
+
+					<section id="noticeSection" class="space-y-2">
+						<h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+							<span class="text-base">📌</span> 回覧板
+						</h3>
+						<div id="noticeList" class="space-y-2"></div>
+					</section>
+
+					<section id="distributionSection" class="space-y-2">
+						<h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+							<span class="text-base">📄</span> 配布物
+						</h3>
+						<div id="distributionList" class="space-y-2"></div>
+					</section>
+				</div>
+
+				<div id="canvasArchive" class="hidden space-y-4">
+					<article class="rounded-2xl border border-slate-200 bg-white p-3">
+						<label for="archiveMonthSelect" class="block text-xs text-slate-600 mb-2">対象年月を選択</label>
+						<select id="archiveMonthSelect" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"></select>
+					</article>
+
+					<article class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+						<p class="text-xs text-slate-600">閲覧中のバックナンバー</p>
+						<p id="archiveMonthLabel" class="text-lg font-bold text-slate-800 mt-1">-</p>
+					</article>
+
+					<section class="space-y-2">
+						<h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+							<span class="text-base">📚</span> 一覧
+						</h3>
+						<div id="archiveList" class="space-y-2"></div>
+					</section>
+				</div>
+			</div>
+		</section>
+
+		<div id="toast" class="pointer-events-none fixed left-1/2 -translate-x-1/2 bottom-4 w-[calc(100%-2rem)] max-w-[440px] hidden">
+			<div id="toastInner" class="rounded-xl px-4 py-3 text-sm font-semibold shadow-xl"></div>
+		</div>
+	</main>
+
+	<script>
+		const LIFF_ID = '2008962357-gLXhtSi2';
+		const GAS_URL = 'https://script.google.com/macros/s/AKfycbx5ohewdKHhUJf57app8yBvx8OT_yS1NMYiwxh5E3DKdFDhz3wcMCv-yc5IO4wekqxF/exec';
+		const REGISTER_FORM_URL = 'https://example.com/register';
+		const LOCAL_MEMBER_STATUS_KEY = 'kitaasai_notice_local_test_member_status';
+
+		const state = {
+			isLocalMode: false,
+			activeTab: 'current',
+			profile: null,
+			member: null,
+			currentItems: [],
+			archiveItems: []
+		};
+
+		const el = {
+			tabBtnCurrent: document.getElementById('tabBtnCurrent'),
+			tabBtnArchive: document.getElementById('tabBtnArchive'),
+			devPanel: document.getElementById('devPanel'),
+			devBadge: document.getElementById('devBadge'),
+			loading: document.getElementById('loading'),
+			notRegisteredScreen: document.getElementById('notRegisteredScreen'),
+			suspendedScreen: document.getElementById('suspendedScreen'),
+			app: document.getElementById('app'),
+			userAvatar: document.getElementById('userAvatar'),
+			userName: document.getElementById('userName'),
+			currentMonthLabel: document.getElementById('currentMonthLabel'),
+			noticeList: document.getElementById('noticeList'),
+			distributionList: document.getElementById('distributionList'),
+			canvasCurrent: document.getElementById('canvasCurrent'),
+			canvasArchive: document.getElementById('canvasArchive'),
+			archiveMonthSelect: document.getElementById('archiveMonthSelect'),
+			archiveMonthLabel: document.getElementById('archiveMonthLabel'),
+			archiveList: document.getElementById('archiveList'),
+			toast: document.getElementById('toast'),
+			toastInner: document.getElementById('toastInner'),
+			registerLink: document.getElementById('registerLink')
+		};
+
+		function isLocalRuntime() {
+			return window.location.hostname === 'localhost'
+				|| window.location.hostname === '127.0.0.1'
+				|| window.location.protocol === 'file:';
+		}
+
+		function getLocalTestStatus() {
+			return localStorage.getItem(LOCAL_MEMBER_STATUS_KEY) || 'ok';
+		}
+
+		function setLocalTestStatus(status) {
+			localStorage.setItem(LOCAL_MEMBER_STATUS_KEY, status);
+		}
+
+		function getYmdFromYm(ym, day) {
+			const dd = String(day).padStart(2, '0');
+			return `${ym}-${dd}`;
+		}
+
+		function getLocalMonthlyItems(ym) {
+			const [year, month] = ym.split('-').map(Number);
+			const ymJa = `${year}年${month}月`;
+			return [
+				{
+					type: 'notice',
+					label: `${ymJa} 町内会定例連絡`,
+					url: 'https://example.com/notice/monthly',
+					ymd: getYmdFromYm(ym, 5),
+					memo: '今月の活動予定と連絡事項をまとめています。'
+				},
+				{
+					type: 'notice',
+					label: `${ymJa} 防災当番のお知らせ`,
+					url: 'https://example.com/notice/bousai',
+					ymd: getYmdFromYm(ym, 12),
+					memo: '当番世帯は事前に確認をお願いします。'
+				},
+				{
+					type: 'distribution',
+					label: `${ymJa} 公民館だより`,
+					url: 'https://example.com/docs/kouminkan',
+					ymd: getYmdFromYm(ym, 8),
+					memo: 'イベント情報を掲載しています。'
+				},
+				{
+					type: 'distribution',
+					label: `${ymJa} ごみ収集カレンダー`,
+					url: 'https://example.com/docs/gomi-calendar',
+					ymd: getYmdFromYm(ym, 20),
+					memo: ''
+				}
+			];
+		}
+
+		function formatYmToJa(ym) {
+			if (!ym || !/^\d{4}-\d{2}$/.test(ym)) return '-';
+			const [y, m] = ym.split('-');
+			return `${Number(y)}年${Number(m)}月号`;
+		}
+
+		function getCurrentYm() {
+			const now = new Date();
+			return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+		}
+
+		function buildRecentMonths(count = 12) {
+			const months = [];
+			const base = new Date();
+			base.setDate(1);
+			for (let i = 0; i < count; i++) {
+				const d = new Date(base.getFullYear(), base.getMonth() - i, 1);
+				const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+				months.push(ym);
+			}
+			return months;
+		}
+
+		function switchMainState(next) {
+			el.loading.classList.toggle('hidden', next !== 'loading');
+			el.notRegisteredScreen.classList.toggle('hidden', next !== 'not_registered');
+			el.suspendedScreen.classList.toggle('hidden', next !== 'suspended');
+			el.app.classList.toggle('hidden', next !== 'app');
+		}
+
+		function updateTabs() {
+			const isCurrent = state.activeTab === 'current';
+			el.canvasCurrent.classList.toggle('hidden', !isCurrent);
+			el.canvasArchive.classList.toggle('hidden', isCurrent);
+
+			el.tabBtnCurrent.className = isCurrent
+				? 'flex-1 rounded-full px-3 py-2 text-xs font-bold tracking-wide transition-all duration-200 bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow'
+				: 'flex-1 rounded-full px-3 py-2 text-xs font-bold tracking-wide transition-all duration-200 text-slate-400';
+
+			el.tabBtnArchive.className = !isCurrent
+				? 'flex-1 rounded-full px-3 py-2 text-xs font-bold tracking-wide transition-all duration-200 bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow'
+				: 'flex-1 rounded-full px-3 py-2 text-xs font-bold tracking-wide transition-all duration-200 text-slate-400';
+		}
+
+		function showToast(message, type = 'info') {
+			const palette = {
+				info: 'bg-slate-900 text-white',
+				success: 'bg-emerald-600 text-white',
+				warning: 'bg-amber-500 text-white',
+				error: 'bg-rose-600 text-white'
+			};
+			el.toastInner.className = `rounded-xl px-4 py-3 text-sm font-semibold shadow-xl ${palette[type] || palette.info}`;
+			el.toastInner.textContent = message;
+			el.toast.classList.remove('hidden');
+			clearTimeout(showToast.timer);
+			showToast.timer = setTimeout(() => {
+				el.toast.classList.add('hidden');
+			}, 2600);
+		}
+
+		async function gasGet(params = {}) {
+			const url = new URL(GAS_URL);
+			Object.entries(params).forEach(([k, v]) => {
+				if (v !== undefined && v !== null) url.searchParams.set(k, v);
+			});
+			const res = await fetch(url.toString(), {
+				method: 'GET',
+				credentials: 'omit'
+			});
+			if (!res.ok) throw new Error(`GET failed: ${res.status}`);
+			return res.json();
+		}
+
+		async function gasPost(payload = {}) {
+			const res = await fetch(GAS_URL, {
+				method: 'POST',
+				headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+				body: JSON.stringify(payload),
+				keepalive: true
+			});
+			if (!res.ok) throw new Error(`POST failed: ${res.status}`);
+			return res.json().catch(() => ({}));
+		}
+
+		async function fetchMemberProfile() {
+			if (state.isLocalMode) {
+				const testStatus = getLocalTestStatus();
+				if (testStatus === 'not_registered') {
+					return {
+						status: 'not_registered',
+						memberName: '未登録ユーザー',
+						registerFormUrl: REGISTER_FORM_URL
+					};
+				}
+				if (testStatus === 'suspended') {
+					return {
+						status: 'suspended',
+						memberName: '利用制限ユーザー',
+						registerFormUrl: REGISTER_FORM_URL
+					};
+				}
+				return {
+					status: 'ok',
+					memberName: '北浅井 テスト住民',
+					registerFormUrl: REGISTER_FORM_URL
+				};
+			}
+
+			const profile = state.profile || {};
+			const raw = await gasGet({
+				action: 'member_check',
+				user_id: profile.userId || '',
+				display_name: profile.displayName || '',
+				picture_url: profile.pictureUrl || ''
+			});
+
+			const data = raw && raw.data ? raw.data : raw;
+			const status = String(data.status || data.member_status || '').toLowerCase();
+			const normalizedStatus = status === 'ok' || status === 'active'
+				? 'ok'
+				: status === 'suspended' || status === 'restricted'
+					? 'suspended'
+					: 'not_registered';
+
+			return {
+				status: normalizedStatus,
+				memberName: data.member_name || data.display_name || profile.displayName || '町民',
+				registerFormUrl: data.register_form_url || REGISTER_FORM_URL
+			};
+		}
+
+		async function fetchMonthlyItems(ym) {
+			if (state.isLocalMode) {
+				return getLocalMonthlyItems(ym);
+			}
+
+			const raw = await gasGet({
+				action: 'get_monthly_items',
+				ym,
+				user_id: state.profile?.userId || ''
+			});
+			const data = raw && raw.data ? raw.data : raw;
+			const items = Array.isArray(data.items) ? data.items : Array.isArray(data) ? data : [];
+			return items.map((item) => ({
+				type: String(item.type || '').toLowerCase(),
+				label: item.label || '無題',
+				url: item.url || '#',
+				ymd: item.ymd || '',
+				memo: item.memo || ''
+			}));
+		}
+
+		function classifyItem(type) {
+			if (type.includes('notice') || type.includes('回覧')) return 'notice';
+			if (type.includes('distribution') || type.includes('配布')) return 'distribution';
+			return 'distribution';
+		}
+
+		function openItemUrl(url, label) {
+			if (!url || url === '#') {
+				showToast('リンク先が設定されていません', 'warning');
+				return;
+			}
+
+			logAction({ action_type: 'item_click', item_label: label });
+
+			if (window.liff && liff.isInClient()) {
+				liff.openWindow({ url, external: true });
+			} else {
+				window.open(url, '_blank', 'noopener,noreferrer');
+			}
+		}
+
+		function renderEmpty(container, message) {
+			container.innerHTML = `
+				<article class="rounded-2xl border border-dashed border-slate-300 bg-white p-4 text-center text-sm text-slate-500">
+					${message}
+				</article>
+			`;
+		}
+
+		function createItemCard(item, mode = 'default') {
+			const memoBlock = item.memo
+				? `<p class="text-xs text-slate-600 mt-2">${escapeHtml(item.memo)}</p>`
+				: '';
+			const buttonLabel = mode === 'archive' ? '開く' : (classifyItem(item.type) === 'notice' ? '確認する' : '配布物を開く');
+
+			return `
+				<article class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+					<div class="flex items-start justify-between gap-2">
+						<div class="min-w-0">
+							<p class="text-[11px] text-slate-500">${escapeHtml(item.ymd || '-')}</p>
+							<h4 class="text-sm font-bold text-slate-800 mt-1 break-words">${escapeHtml(item.label)}</h4>
+							${memoBlock}
+						</div>
+						<button
+							type="button"
+							class="shrink-0 inline-flex items-center gap-1 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold px-3 py-2"
+							data-item-url="${escapeHtml(item.url)}"
+							data-item-label="${escapeHtml(item.label)}"
+						>
+							<i class="fa-solid fa-up-right-from-square"></i>${buttonLabel}
+						</button>
+					</div>
+				</article>
+			`;
+		}
+
+		function renderCurrentItems(items, ym) {
+			const notices = items.filter((item) => classifyItem(item.type) === 'notice');
+			const distributions = items.filter((item) => classifyItem(item.type) === 'distribution');
+
+			el.currentMonthLabel.textContent = formatYmToJa(ym);
+			if (notices.length === 0) {
+				renderEmpty(el.noticeList, '今月の回覧板はありません');
+			} else {
+				el.noticeList.innerHTML = notices.map((item) => createItemCard(item)).join('');
+			}
+
+			if (distributions.length === 0) {
+				renderEmpty(el.distributionList, '今月の配布物はありません');
+			} else {
+				el.distributionList.innerHTML = distributions.map((item) => createItemCard(item)).join('');
+			}
+		}
+
+		function renderArchiveItems(items, ym) {
+			el.archiveMonthLabel.textContent = formatYmToJa(ym);
+			if (items.length === 0) {
+				renderEmpty(el.archiveList, '選択した月のデータはありません');
+				return;
+			}
+			el.archiveList.innerHTML = items.map((item) => createItemCard(item, 'archive')).join('');
+		}
+
+		function bindCardClickEvents() {
+			const root = document.getElementById('app');
+			root.addEventListener('click', (event) => {
+				const button = event.target.closest('button[data-item-url]');
+				if (!button) return;
+				const url = button.dataset.itemUrl || '#';
+				const label = button.dataset.itemLabel || '無題';
+				openItemUrl(url, label);
+			});
+		}
+
+		function escapeHtml(value) {
+			return String(value)
+				.replace(/&/g, '&amp;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;')
+				.replace(/"/g, '&quot;')
+				.replace(/'/g, '&#039;');
+		}
+
+		function logAction(payload) {
+			if (state.isLocalMode) {
+				console.log('[LOCAL LOG]', payload.action_type, payload.item_label || '', payload.ym || getCurrentYm());
+				return;
+			}
+
+			const body = {
+				action: 'log',
+				action_type: payload.action_type,
+				item_label: payload.item_label || '',
+				ym: payload.ym || getCurrentYm(),
+				user_id: state.profile?.userId || '',
+				user_name: state.member?.memberName || state.profile?.displayName || ''
+			};
+
+			if (navigator.sendBeacon) {
+				try {
+					const blob = new Blob([JSON.stringify(body)], { type: 'text/plain;charset=utf-8' });
+					navigator.sendBeacon(GAS_URL, blob);
+					return;
+				} catch (_) {
+					// Fallback below when sendBeacon is unavailable or blocked.
+				}
+			}
+
+			fetch(GAS_URL, {
+				method: 'POST',
+				headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+				body: JSON.stringify(body),
+				keepalive: true
+			}).catch(() => {
+				// No-op: logging should never block the user flow.
+			});
+		}
+
+		function setupTabs() {
+			el.tabBtnCurrent.addEventListener('click', () => {
+				state.activeTab = 'current';
+				updateTabs();
+			});
+			el.tabBtnArchive.addEventListener('click', () => {
+				state.activeTab = 'archive';
+				updateTabs();
+			});
+			updateTabs();
+		}
+
+		function setupArchiveSelector() {
+			const months = buildRecentMonths(12);
+			el.archiveMonthSelect.innerHTML = months
+				.map((ym) => `<option value="${ym}">${formatYmToJa(ym)}</option>`)
+				.join('');
+
+			el.archiveMonthSelect.addEventListener('change', async (event) => {
+				const ym = event.target.value;
+				try {
+					el.archiveList.innerHTML = '<div class="text-sm text-slate-500 px-1">読み込み中...</div>';
+					const items = await fetchMonthlyItems(ym);
+					state.archiveItems = items;
+					renderArchiveItems(items, ym);
+					logAction({ action_type: 'page_view', ym });
+				} catch (error) {
+					renderEmpty(el.archiveList, 'データの取得に失敗しました');
+					showToast('バックナンバー取得に失敗しました', 'error');
+				}
+			});
+		}
+
+		function setupDevPanel() {
+			state.isLocalMode = isLocalRuntime();
+			if (!state.isLocalMode) return;
+
+			el.devPanel.classList.remove('hidden');
+			el.devBadge.classList.remove('hidden');
+
+			const activeClass = 'px-3 py-1.5 text-xs rounded-lg font-semibold text-white ring-2 ring-white/60';
+			const mapClass = {
+				ok: {
+					on: `bg-emerald-500 ${activeClass}`,
+					off: 'px-3 py-1.5 text-xs rounded-lg bg-slate-600 text-slate-200 font-semibold'
+				},
+				not_registered: {
+					on: `bg-amber-500 ${activeClass}`,
+					off: 'px-3 py-1.5 text-xs rounded-lg bg-slate-600 text-slate-200 font-semibold'
+				},
+				suspended: {
+					on: `bg-rose-500 ${activeClass}`,
+					off: 'px-3 py-1.5 text-xs rounded-lg bg-slate-600 text-slate-200 font-semibold'
+				}
+			};
+
+			const setButtonStyles = (selected) => {
+				el.devPanel.querySelectorAll('[data-dev-state]').forEach((btn) => {
+					const mode = btn.dataset.devState;
+					if (!mapClass[mode]) return;
+					btn.className = mode === selected ? mapClass[mode].on : mapClass[mode].off;
+				});
+			};
+
+			setButtonStyles(getLocalTestStatus());
+
+			el.devPanel.querySelectorAll('[data-dev-state]').forEach((btn) => {
+				btn.addEventListener('click', () => {
+					const mode = btn.dataset.devState;
+					setLocalTestStatus(mode);
+					setButtonStyles(mode);
+					initApp(true);
+				});
+			});
+		}
+
+		async function initLiff() {
+			await liff.init({ liffId: LIFF_ID });
+			if (!liff.isLoggedIn()) {
+				liff.login();
+				return null;
+			}
+			return liff.getProfile();
+		}
+
+		let initialized = false;
+
+		async function initApp(isRefresh = false) {
+			if (!initialized) {
+				setupTabs();
+				setupArchiveSelector();
+				setupDevPanel();
+				bindCardClickEvents();
+				initialized = true;
+			} else if (!isRefresh) {
+				setupDevPanel();
+			}
+			el.registerLink.href = REGISTER_FORM_URL;
+
+			switchMainState('loading');
+
+			try {
+				if (state.isLocalMode) {
+					state.profile = {
+						userId: 'U_LOCAL_NOTICE_TEST_001',
+						displayName: 'ローカル利用者',
+						pictureUrl: 'https://placehold.jp/96x96.png'
+					};
+				} else {
+					const profile = await initLiff();
+					if (!profile) return;
+					state.profile = profile;
+				}
+
+				state.member = await fetchMemberProfile();
+				el.userName.textContent = state.member.memberName;
+				el.userAvatar.src = state.profile.pictureUrl || 'https://placehold.jp/96x96.png';
+				el.registerLink.href = state.member.registerFormUrl || REGISTER_FORM_URL;
+
+				if (state.member.status === 'not_registered') {
+					switchMainState('not_registered');
+					return;
+				}
+				if (state.member.status === 'suspended') {
+					switchMainState('suspended');
+					return;
+				}
+
+				const ym = getCurrentYm();
+				state.currentItems = await fetchMonthlyItems(ym);
+				renderCurrentItems(state.currentItems, ym);
+
+				const archiveYm = el.archiveMonthSelect.value || ym;
+				state.archiveItems = await fetchMonthlyItems(archiveYm);
+				renderArchiveItems(state.archiveItems, archiveYm);
+
+				switchMainState('app');
+				logAction({ action_type: 'page_view', ym });
+			} catch (error) {
+				console.error(error);
+				switchMainState('app');
+				renderCurrentItems([], getCurrentYm());
+				renderArchiveItems([], el.archiveMonthSelect.value || getCurrentYm());
+				showToast('初期化中にエラーが発生しました', 'error');
+			}
+		}
+
+		initApp();
+	</script>
+</body>
+</html>
