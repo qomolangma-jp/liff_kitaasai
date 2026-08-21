@@ -1,0 +1,203 @@
+/**
+ * 町内会DXパッケージ - 回覧板＆デジタル配布物 API (修正安定版)
+ */
+
+// ----------------------------------------------------
+// 設定: 別スプレッドシートのID & シート名
+// ----------------------------------------------------
+const SPREADSHEET_MEMBER_ID = '1e3lhpVcETvJEZNpvFLTAqr7BpV0StXYOkjro-Co7IMk';
+
+const SHEET_MEMBER = '名簿';       // 住民名簿側のシート名
+const SHEET_NOTICE = 'notice';     // 本スプレッドシートのシート名
+const SHEET_LOG    = 'accesslog';  // 本スプレッドシートのシート名
+
+// ----------------------------------------------------
+// ① GETリクエスト処理 (doGet)
+// ----------------------------------------------------
+function doGet(e) {
+  try {
+    const params = e ? e.parameter : {};
+    const action = params.action || params.type;
+
+    // 1. 別スプレッドシートの住民名簿照合 API
+    if (action === 'member_check' || action === 'user') {
+      const userId = params.user_id || params.uid || '';
+      const result = checkMemberStatusFromExternalSpreadsheet(userId);
+      return createJsonResponse({ status: 'success', data: result });
+    }
+
+    // 2. 月別 回覧・配布物データ取得 API
+    if (action === 'get_monthly_items' || action === 'getNotices') {
+      const ym = params.ym || params.month || getCurrentYm();
+      const items = getMonthlyItems(ym);
+      return createJsonResponse({ status: 'success', data: { ym: ym, items: items } });
+    }
+
+    return createJsonResponse({ status: 'error', message: 'Invalid action parameter' });
+
+  } catch (error) {
+    return createJsonResponse({ status: 'error', message: error.toString() });
+  }
+}
+
+// ----------------------------------------------------
+// ② POSTリクエスト処理 (doPost - アクセスログ書き込み)
+// ----------------------------------------------------
+function doPost(e) {
+  try {
+    let payload = {};
+    if (e && e.postData && e.postData.contents) {
+      payload = JSON.parse(e.postData.contents);
+    }
+
+    const action = payload.action || 'log';
+
+    if (action === 'log') {
+      // ユーザーIDから最新の所属班・氏名を取得（名簿から補完）
+      const userId = payload.user_id || payload.line_id || 'ANONYMOUS';
+      const memberInfo = checkMemberStatusFromExternalSpreadsheet(userId);
+
+      const logData = {
+        timestamp: new Date(),
+        userId: userId,
+        userName: payload.user_name || memberInfo.member_name || '不明',
+        group: memberInfo.group || payload.group || '',
+        targetMonth: payload.ym || payload.target_month || getCurrentYm(),
+        actionType: payload.action_type || 'page_view',
+        itemLabel: payload.item_label || ''
+      };
+
+      appendAccessLog(logData);
+      return createJsonResponse({ status: 'success', message: 'Log recorded successfully' });
+    }
+
+    return createJsonResponse({ status: 'error', message: 'Unknown post action' });
+
+  } catch (error) {
+    return createJsonResponse({ status: 'error', message: error.toString() });
+  }
+}
+
+// ----------------------------------------------------
+// ヘルパー関数: 【別スプレッドシート】からの住民名簿照合
+// ----------------------------------------------------
+function checkMemberStatusFromExternalSpreadsheet(userId) {
+  if (!userId) {
+    return { status: 'not_registered', member_name: '', group: '', register_form_url: '' };
+  }
+
+  try {
+    const memberSS = SpreadsheetApp.openById(SPREADSHEET_MEMBER_ID);
+    const sheet = memberSS.getSheetByName(SHEET_MEMBER);
+    
+    if (!sheet) {
+      return { status: 'ok', member_name: '町民', group: '', register_form_url: '' };
+    }
+
+    const data = sheet.getDataRange().getDisplayValues(); // 表示文字列のままで取得
+    if (data.length <= 1) {
+      return { status: 'not_registered', member_name: '', group: '', register_form_url: '' };
+    }
+
+    // 列構造: [0]氏名, [1]所属班, [2]住所, [3]デジタル受取, [4]LINE_ID, [5]ステータス
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      const name = row[0];
+      const group = row[1];
+      const lineId = row[4];
+      const statusVal = String(row[5] || 'OK').toUpperCase();
+
+      if (String(lineId).trim() === String(userId).trim()) {
+        if (statusVal === 'NG' || statusVal === 'SUSPENDED') {
+          return { status: 'suspended', member_name: name, group: group, register_form_url: '' };
+        }
+        return { status: 'ok', member_name: name, group: group, register_form_url: '' };
+      }
+    }
+
+    return { 
+      status: 'not_registered', 
+      member_name: '', 
+      group: '',
+      register_form_url: 'https://liff.line.me/2008962357-ePaQmDO9' 
+    };
+
+  } catch (error) {
+    Logger.log('別スプレッドシートの読み込みエラー: ' + error.toString());
+    return { status: 'ok', member_name: '町民', group: '', register_form_url: '' };
+  }
+}
+
+// ----------------------------------------------------
+// ヘルパー関数: 月別データ取得 (日付形式の揺れを自動判別)
+// ----------------------------------------------------
+function getMonthlyItems(targetYm) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NOTICE);
+  
+  if (!sheet) return [];
+
+  // スプレッドシートの表示見たままの文字列を取得（2026-08-01 や 2026/08/01）
+  const displayData = sheet.getDataRange().getDisplayValues();
+  if (displayData.length <= 1) return [];
+
+  const items = [];
+  // ターゲットの年月（例: "2026-08" または "2026/08"）
+  const formattedTargetYm = targetYm.replace(/\//g, '-');
+
+  for (let i = 1; i < displayData.length; i++) {
+    const row = displayData[i];
+    const rawYmd = String(row[0] || '').trim();
+    const normalizedYmd = rawYmd.replace(/\//g, '-'); // スラッシュをハイフンに統一
+
+    if (!rawYmd || !row[2]) continue; // 日付かタイトルが空ならスキップ
+
+    if (normalizedYmd.startsWith(formattedTargetYm)) {
+      items.push({
+        ymd: rawYmd,
+        type: String(row[1] || '').trim(),
+        label: String(row[2] || '').trim(),
+        url: String(row[3] || '').trim(),
+        memo: String(row[4] || '').trim()
+      });
+    }
+  }
+
+  items.sort((a, b) => (a.ymd < b.ymd ? 1 : -1));
+  return items;
+}
+
+// ----------------------------------------------------
+// ヘルパー関数: アクセスログ追加 (accesslogシートへ)
+// ----------------------------------------------------
+function appendAccessLog(log) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_LOG);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_LOG);
+    sheet.appendRow(['日時', 'ユーザーID', '氏名', '所属班', '対象月', 'アクション種別', '閲覧アイテム名']);
+  }
+
+  const formattedDate = Utilities.formatDate(log.timestamp, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+  
+  sheet.appendRow([
+    formattedDate,
+    log.userId,
+    log.userName,
+    log.group,
+    log.targetMonth,
+    log.actionType,
+    log.itemLabel
+  ]);
+}
+
+function getCurrentYm() {
+  return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM');
+}
+
+function createJsonResponse(data) {
+  const output = ContentService.createTextOutput(JSON.stringify(data));
+  output.setMimeType(ContentService.MimeType.JSON);
+  return output;
+}

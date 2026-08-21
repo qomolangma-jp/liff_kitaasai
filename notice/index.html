@@ -163,7 +163,7 @@
 
 	<script>
 		const LIFF_ID = '2008962357-gLXhtSi2';
-		const GAS_URL = 'https://script.google.com/macros/s/AKfycbx5ohewdKHhUJf57app8yBvx8OT_yS1NMYiwxh5E3DKdFDhz3wcMCv-yc5IO4wekqxF/exec';
+		const GAS_URL = 'https://script.google.com/macros/s/AKfycbzl3U689ttrMoOjUtvSkNHYQcuf7dY5DsJumoaEgRej3gT-KVV8maY0DsG8vNikEsqr4Q/exec';
 		const REGISTER_FORM_URL = 'https://example.com/register';
 		const LOCAL_MEMBER_STATUS_KEY = 'kitaasai_notice_local_test_member_status';
 
@@ -212,46 +212,6 @@
 
 		function setLocalTestStatus(status) {
 			localStorage.setItem(LOCAL_MEMBER_STATUS_KEY, status);
-		}
-
-		function getYmdFromYm(ym, day) {
-			const dd = String(day).padStart(2, '0');
-			return `${ym}-${dd}`;
-		}
-
-		function getLocalMonthlyItems(ym) {
-			const [year, month] = ym.split('-').map(Number);
-			const ymJa = `${year}年${month}月`;
-			return [
-				{
-					type: 'notice',
-					label: `${ymJa} 町内会定例連絡`,
-					url: 'https://example.com/notice/monthly',
-					ymd: getYmdFromYm(ym, 5),
-					memo: '今月の活動予定と連絡事項をまとめています。'
-				},
-				{
-					type: 'notice',
-					label: `${ymJa} 防災当番のお知らせ`,
-					url: 'https://example.com/notice/bousai',
-					ymd: getYmdFromYm(ym, 12),
-					memo: '当番世帯は事前に確認をお願いします。'
-				},
-				{
-					type: 'distribution',
-					label: `${ymJa} 公民館だより`,
-					url: 'https://example.com/docs/kouminkan',
-					ymd: getYmdFromYm(ym, 8),
-					memo: 'イベント情報を掲載しています。'
-				},
-				{
-					type: 'distribution',
-					label: `${ymJa} ごみ収集カレンダー`,
-					url: 'https://example.com/docs/gomi-calendar',
-					ymd: getYmdFromYm(ym, 20),
-					memo: ''
-				}
-			];
 		}
 
 		function formatYmToJa(ym) {
@@ -338,6 +298,98 @@
 			return res.json().catch(() => ({}));
 		}
 
+		function normalizeYmd(value) {
+			const s = String(value || '').trim();
+			const m = s.match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/);
+			if (!m) return s;
+			return `${m[1]}/${m[2].padStart(2, '0')}/${m[3].padStart(2, '0')}`;
+		}
+
+		function toMonthlyItem(item) {
+			if (Array.isArray(item)) {
+				return {
+					ymd: normalizeYmd(item[0] || ''),
+					type: String(item[1] || '').trim().toLowerCase(),
+					label: String(item[2] || '無題').trim(),
+					url: String(item[3] || '#').trim(),
+					memo: String(item[4] || '').trim()
+				};
+			}
+
+			const row = item && typeof item === 'object' ? item : {};
+			const typeRaw = row.type || row.item_type || row.kind || row.category || '';
+			return {
+				ymd: normalizeYmd(row.ymd || row.date || row.publish_date || ''),
+				type: String(typeRaw).trim().toLowerCase(),
+				label: String(row.label || row.title || row.name || '無題').trim(),
+				url: String(row.url || row.link || '#').trim(),
+				memo: String(row.memo || row.note || row.description || '').trim()
+			};
+		}
+
+		function parseMonthlyItemsFromText(text) {
+			if (!text) return [];
+			const htmlCommentPattern = new RegExp('<!--([\\s\\S]*?)-->', 'g');
+			const markdownLinkPattern = new RegExp('\\[[^\\]]*\\]\\((https?:[^)]+)\\)', 'g');
+
+			const cleaned = String(text)
+				.replace(htmlCommentPattern, ' ')
+				.replace(markdownLinkPattern, ' $1 ')
+				.replace(/\s+/g, ' ')
+				.trim();
+
+			const rows = [];
+			const rowPattern = /(\d{4}[\/-]\d{1,2}[\/-]\d{1,2})\s*(回覧板|配布物)\s*([\s\S]*?)\s*(https?:\/\/[^\s]+)\s*([\s\S]*?)(?=(\d{4}[\/-]\d{1,2}[\/-]\d{1,2})\s*(回覧板|配布物)|$)/g;
+
+			let match;
+			while ((match = rowPattern.exec(cleaned)) !== null) {
+				rows.push({
+					ymd: normalizeYmd(match[1]),
+					type: String(match[2]).trim().toLowerCase(),
+					label: String(match[3] || '').trim() || '無題',
+					url: String(match[4] || '').trim() || '#',
+					memo: String(match[5] || '').trim()
+				});
+			}
+
+			return rows;
+		}
+
+		function extractMonthlyItemRows(payload) {
+			if (!payload) return [];
+
+			if (Array.isArray(payload)) {
+				return payload;
+			}
+
+			if (typeof payload === 'string') {
+				return parseMonthlyItemsFromText(payload);
+			}
+
+			if (typeof payload === 'object') {
+				const candidateKeys = ['items', 'list', 'rows', 'values', 'result', 'data'];
+				for (const key of candidateKeys) {
+					const value = payload[key];
+					if (Array.isArray(value)) return value;
+					if (typeof value === 'string') {
+						const parsed = parseMonthlyItemsFromText(value);
+						if (parsed.length > 0) return parsed;
+					}
+				}
+
+				const values = Object.values(payload);
+				for (const value of values) {
+					if (Array.isArray(value)) return value;
+					if (typeof value === 'string') {
+						const parsed = parseMonthlyItemsFromText(value);
+						if (parsed.length > 0) return parsed;
+					}
+				}
+			}
+
+			return [];
+		}
+
 		async function fetchMemberProfile() {
 			if (state.isLocalMode) {
 				const testStatus = getLocalTestStatus();
@@ -386,24 +438,22 @@
 		}
 
 		async function fetchMonthlyItems(ym) {
-			if (state.isLocalMode) {
-				return getLocalMonthlyItems(ym);
-			}
-
 			const raw = await gasGet({
 				action: 'get_monthly_items',
 				ym,
 				user_id: state.profile?.userId || ''
 			});
 			const data = raw && raw.data ? raw.data : raw;
-			const items = Array.isArray(data.items) ? data.items : Array.isArray(data) ? data : [];
-			return items.map((item) => ({
-				type: String(item.type || '').toLowerCase(),
-				label: item.label || '無題',
-				url: item.url || '#',
-				ymd: item.ymd || '',
-				memo: item.memo || ''
-			}));
+			const rows = extractMonthlyItemRows(data);
+			const normalized = rows
+				.map((item) => toMonthlyItem(item))
+				.filter((item) => item.label || item.url !== '#');
+
+			if (normalized.length === 0 && state.isLocalMode) {
+				console.warn('月次データが0件でした。返却形式を確認してください。', raw);
+			}
+
+			return normalized;
 		}
 
 		function classifyItem(type) {
