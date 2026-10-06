@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>[北浅井] 出欠回答フォーム</title>
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  
+  <style>
+    /* 全体のベース設定（スマホアプリライクなUI） */
+    :root {
+      --primary-color: #10b981;
+      --primary-color-strong: #047857;
+      --accent-color: #facc15;
+      --bg-color: #fffbeb;
+      --card-bg: #ffffff;
+      --text-main: #1e293b;
+      --text-sub: #64748b;
+      --border-color: #fde68a;
+    }
+    
+    body {
+      font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background-color: var(--bg-color);
+      min-height: 100vh;
+      padding-bottom: 40px;
+    }
+
+    /* ヘッダー */
+    header {
+      background: linear-gradient(135deg, #047857 0%, #059669 72%, #10b981 100%);
+      border-bottom: 4px solid #facc15;
+      padding: 16px;
+      box-shadow: 0 8px 18px rgba(4,120,87,0.18);
+      border-bottom: none;
+    }
+
+    .brand-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: #ffffff;
+    }
+
+    .brand-header__logo {
+      width: 52px;
+      height: 52px;
+      object-fit: cover;
+      border-radius: 14px;
+      border: 2px solid rgba(255,255,255,0.5);
+      background: #fff;
+    }
+
+    .brand-header__title {
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      margin: 0;
+      color: #ffffff;
+    }
+
+    h1 {
+      font-size: 16px;
+      margin: 0;
+      color: var(--text-main);
+    }
+
+    /* メインコンテンツ枠 */
+    .content-box {
+      background-color: var(--card-bg);
+      margin: 20px 16px;
+      padding: 24px 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    #loading {
+      text-align: center;
+      padding: 40px 0;
+      color: var(--text-sub);
+      font-size: 14px;
+    }
+
+    /* 設問テキスト */
+    .question-title {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 12px;
+      color: var(--primary-color);
+    }
+
+    .question-text {
+      font-size: 14px;
+      color: var(--text-sub);
+      margin-bottom: 24px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+
+    .event-meta {
+      display: grid;
+      gap: 8px;
+      margin: -8px 0 20px;
+      color: var(--text-sub);
+      font-size: 14px;
+    }
+
+    .event-meta-row {
+      display: grid;
+      grid-template-columns: 5em 1fr;
+      gap: 8px;
+      line-height: 1.5;
+    }
+
+    /* 選択肢（ラジオボタン） */
+    .radio-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .radio-label {
+      display: flex;
+      align-items: center;
+      padding: 14px 16px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      background-color: #fafafa;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    /* 選択された時のデザインを変える場合はJSでクラス付与等も可能ですが、今回はシンプルに */
+    .radio-label input[type="radio"] {
+      margin-right: 12px;
+      transform: scale(1.3);
+      accent-color: var(--primary-color);
+    }
+
+    /* 送信ボタン */
+    .btn-submit {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #047857 0%, var(--primary-color) 100%);
+      border-bottom: 4px solid var(--accent-color);
+      color: #ffffff;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 10px 18px rgba(4, 120, 87, 0.2);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .btn-submit:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 22px rgba(4, 120, 87, 0.24);
+    }
+
+    .btn-submit:active {
+      transform: translateY(2px);
+      box-shadow: none;
+    }
+
+    .btn-submit:disabled {
+      background-color: #cccccc;
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+
+    #memo-input::placeholder {
+      color: #b7b7b7;
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <div class="brand-header">
+        <img src="../common/logo_square.jpg" alt="[北浅井]DX町内会_LINEシステム" class="brand-header__logo" />
+        <h1 class="brand-header__title">[北浅井]DX町内会_LINEシステム</h1>
+      </div>
+    </header>
+
+    <div id="loading">データを読み込んでいます...</div>
+
+    <div id="form-container" class="content-box" style="display: none;">
+      <div id="q-title" class="question-title"></div>
+      <div class="event-meta">
+        <div class="event-meta-row"><strong>日時</strong><span id="event-datetime"></span></div>
+        <div class="event-meta-row"><strong>場所</strong><span id="event-location"></span></div>
+        <div class="event-meta-row" id="deadline-row" style="display: none;"><strong>回答期限</strong><span id="event-deadline"></span></div>
+      </div>
+      <div id="q-text" class="question-text"></div>
+      
+      <form id="attendance-form">
+        <div id="radio-buttons" class="radio-group"></div>
+
+        <div style="margin-bottom: 32px;">
+          <label class="question-title" style="font-size: 14px;">備考（任意）</label>
+          <textarea id="memo-input" rows="3" style="width: 100%; border-radius: 8px; border: 1px solid var(--border-color); padding: 12px; font-family: inherit; resize: vertical; box-sizing: border-box; background-color: #fafafa;" placeholder="連絡事項などがあればご記入ください"></textarea>
+        </div>
+
+        <button type="button" id="submit-btn" class="btn-submit" onclick="submitForm()">回答を送信する</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="../common/app-config.js"></script>
+  <script>
+    // ==========================================
+    // ★ 必須設定（ご自身のものに書き換えてください）★
+    // ==========================================
+    const PAGE_CONFIG = (window.AppConfig && window.AppConfig.getRequiredPageConfig('attendance')) || {};
+    const LIFF_ID = PAGE_CONFIG.liffId;
+    const GAS_API_URL = PAGE_CONFIG.gasUrl;
+    // ==========================================
+
+    let userProfile = {};
+    let eventId = "";
+    const answerOptions = ["出席", "欠席", "未定"];
+    const loading = document.getElementById("loading");
+
+    window.onload = function() {
+      liff.init({ liffId: LIFF_ID })
+        .then(() => {
+          eventId = getEventId();
+          if (!eventId) {
+            loading.textContent = "イベントIDがありません。イベントの回答リンクから開いてください。";
+            return null;
+          }
+
+          if (!liff.isLoggedIn()) {
+            const redirectUrl = new URL(window.location.href);
+            redirectUrl.searchParams.set("q", eventId);
+            liff.login({ redirectUri: redirectUrl.toString() });
+            return null;
+          }
+          return liff.getProfile();
+        })
+        .then(profile => {
+          if (!profile) return;
+          userProfile = profile;
+          return loadEvent();
+        })
+        .catch(error => {
+          console.error("LIFF init failed:", error);
+          loading.textContent = "エラーが発生しました。LINEアプリから開き直してください。";
+        });
+    };
+
+    function getEventId() {
+      const currentParams = new URLSearchParams(window.location.search);
+      const directEventId = currentParams.get("q");
+      if (directEventId) return directEventId.trim();
+
+      const liffState = typeof liff.state === "string"
+        ? liff.state
+        : (currentParams.get("liff.state") || "");
+      if (!liffState) return "";
+
+      const stateUrl = new URL(liffState, window.location.origin);
+      return (stateUrl.searchParams.get("q") || "").trim();
+    }
+
+    function loadEvent() {
+      const requestUrl = new URL(GAS_API_URL);
+      requestUrl.searchParams.set("action", "attendance_question");
+      requestUrl.searchParams.set("qid", eventId);
+      requestUrl.searchParams.set("uid", userProfile.userId);
+
+      return fetch(requestUrl)
+        .then(response => response.json())
+        .then(result => {
+          if (result.error || result.ok === false) {
+            loading.textContent = getApiErrorMessage(result, "イベント情報を読み込めませんでした。");
+            return;
+          }
+
+          document.getElementById("q-title").textContent = result.event_name;
+          document.getElementById("event-datetime").textContent = result.event_datetime;
+          document.getElementById("event-location").textContent = result.event_location;
+          document.getElementById("q-text").textContent = result.description;
+          if (result.response_deadline) {
+            document.getElementById("event-deadline").textContent = result.response_deadline;
+            document.getElementById("deadline-row").style.display = "grid";
+          }
+
+          const radioContainer = document.getElementById("radio-buttons");
+          radioContainer.replaceChildren();
+          answerOptions.forEach(option => {
+            const label = document.createElement("label");
+            label.className = "radio-label";
+            const radio = document.createElement("input");
+            radio.type = "radio";
+            radio.name = "attendance_answer";
+            radio.value = option;
+            radio.checked = option === result.previousAnswer;
+            const text = document.createTextNode(option);
+            label.append(radio, text);
+            radioContainer.appendChild(label);
+          });
+
+          document.getElementById("memo-input").value = result.previousMemo || "";
+          loading.style.display = "none";
+          document.getElementById("form-container").style.display = "block";
+        });
+    }
+
+    function submitForm() {
+      const selected = document.querySelector('input[name="attendance_answer"]:checked');
+      if (!selected) {
+        alert("回答を選択してください。");
+        return;
+      }
+
+      const submitButton = document.getElementById("submit-btn");
+      submitButton.disabled = true;
+      submitButton.textContent = "送信中...";
+
+      fetch(GAS_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({
+          action: "attendance_answer",
+          lineId: userProfile.userId,
+          qid: eventId,
+          answer: selected.value,
+          memo: document.getElementById("memo-input").value,
+          liff_token: liff.getAccessToken() || ""
+        })
+      })
+        .then(response => response.json())
+        .then(result => {
+          if (!result.success) {
+            throw new Error(getApiErrorMessage(result, "回答を保存できませんでした。"));
+          }
+          alert("回答を送信しました。");
+          liff.closeWindow();
+        })
+        .catch(error => {
+          console.error("Attendance submit failed:", error);
+          alert(error.message || "通信エラーが発生しました。電波の良いところで再度お試しください。");
+          submitButton.disabled = false;
+          submitButton.textContent = "回答を送信する";
+        });
+    }
+
+    function getApiErrorMessage(result, fallback) {
+      if (result && typeof result.message === "string" && result.message) {
+        return result.message;
+      }
+      if (result && result.error && typeof result.error.message === "string") {
+        return result.error.message;
+      }
+      return fallback;
+    }
+  </script>
+</body>
+</html>

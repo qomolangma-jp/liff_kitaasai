@@ -3,9 +3,10 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-	<title>北浅井町内会 デジタル回覧板u</title>
+	<title>[北浅井] デジタル回覧板</title>
 	<script src="https://cdn.tailwindcss.com"></script>
 	<link rel="stylesheet" href="../common/app-shell.css">
+	<script src="../common/app-config.js"></script>
 	<script src="../common/member-check.js"></script>
 	<script src="../common/ui-patterns.js"></script>
 	<script>
@@ -14,12 +15,19 @@
 				extend: {
 					colors: {
 						brand: {
-							50: '#f0fdf4',
-							100: '#dcfce7',
-							200: '#bbf7d0',
-							500: '#22c55e',
-							600: '#16a34a',
-							700: '#15803d'
+							50: '#ecfdf5',
+							100: '#d1fae5',
+							200: '#a7f3d0',
+							300: '#6ee7b7',
+							400: '#34d399',
+							500: '#10b981',
+							600: '#059669',
+							700: '#047857'
+						},
+						green: {
+							500: '#19b66d',
+							600: '#13a261',
+							700: '#0c8751'
 						}
 					}
 				}
@@ -33,6 +41,13 @@
 <body class="h-full app-page overflow-x-hidden">
 	<main class="app-shell app-shell--desktop">
 		<header class="app-header">
+			<div class="app-header__brand">
+				<img src="../common/logo_square.jpg" alt="[北浅井]町内会_LINEシステム" class="app-header__logo" />
+				<div class="app-header__brand-text">
+					<div class="app-header__brand-title">[北浅井]</div>
+					<div class="app-header__brand-sub">町内会_LINEシステム</div>
+				</div>
+			</div>
 			<div class="app-header__tabbar">
 				<button
 					id="tabBtnCurrent"
@@ -65,7 +80,7 @@
 			<div class="app-toolbar__inner">
 				<h1 class="app-toolbar__title">
 					<i class="fa-solid fa-newspaper"></i>
-					<span>北浅井町内会 デジタル回覧板</span>
+					<span>北浅井町 デジタル回覧板</span>
 				</h1>
 				<span id="devBadge" class="app-badge hidden">LOCAL MODE</span>
 			</div>
@@ -74,7 +89,7 @@
 		<section id="loading" class="app-screen app-screen--centered">
 			<div class="app-loading">
 				<div class="app-loading__spinner"></div>
-				<p class="text-sm font-semibold text-slate-600">住民名簿と照合中...</p>
+				<p id="loadingMessage" class="text-sm font-semibold text-slate-600">住民名簿と照合中...</p>
 			</div>
 		</section>
 
@@ -126,6 +141,10 @@
 						<p id="currentMonthLabel" class="text-lg font-bold text-brand-700 mt-1">-</p>
 					</article>
 
+					<p id="noticeAccessMessage" class="hidden rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-800">
+						回覧板の閲覧権限がありません。町内会名簿への登録と、管理者による閲覧許可が必要です。配布物は公開情報としてご覧いただけます。
+					</p>
+
 					<section id="noticeSection" class="space-y-2">
 						<h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
 							<span class="text-base">📌</span> 回覧板
@@ -159,6 +178,17 @@
 						<div id="archiveList" class="space-y-2"></div>
 					</section>
 				</div>
+
+				<div class="pt-2">
+					<button
+						id="goArchiveBottomBtn"
+						type="button"
+						class="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50"
+					>
+						<i class="fa-solid fa-book-open"></i>
+						<span>バックナンバーを見る</span>
+					</button>
+				</div>
 			</div>
 		</section>
 
@@ -168,10 +198,15 @@
 	</main>
 
 	<script>
-		const LIFF_ID = '2008962357-JxnIosW0';
-		const GAS_URL = 'https://script.google.com/macros/s/AKfycbzl3U689ttrMoOjUtvSkNHYQcuf7dY5DsJumoaEgRej3gT-KVV8maY0DsG8vNikEsqr4Q/exec';
-		const REGISTER_FORM_URL = 'https://example.com/register';
+		const PAGE_CONFIG = (window.AppConfig && window.AppConfig.getRequiredPageConfig('notice')) || {};
+		const LIFF_ID = PAGE_CONFIG.liffId;
+		const GAS_URL = PAGE_CONFIG.gasUrl;
+		const REGISTER_FORM_URL = PAGE_CONFIG.registerFormUrl || '';
 		const LOCAL_MEMBER_STATUS_KEY = 'kitaasai_notice_local_test_member_status';
+		const MEMBER_CACHE_TTL_MS = 60 * 1000;
+		const MONTHLY_CACHE_TTL_MS = 3 * 60 * 1000;
+		const memberProfileMemoryCache = new Map();
+		const monthlyItemsMemoryCache = new Map();
 
 		const state = {
 			isLocalMode: false,
@@ -179,7 +214,10 @@
 			profile: null,
 			member: null,
 			currentItems: [],
-			archiveItems: []
+			archiveItems: [],
+			archiveLoaded: false,
+			archiveRequestId: 0,
+			availableArchiveMonths: []
 		};
 
 		const el = {
@@ -188,19 +226,23 @@
 			devPanel: document.getElementById('devPanel'),
 			devBadge: document.getElementById('devBadge'),
 			loading: document.getElementById('loading'),
+			loadingMessage: document.getElementById('loadingMessage'),
 			notRegisteredScreen: document.getElementById('notRegisteredScreen'),
 			suspendedScreen: document.getElementById('suspendedScreen'),
 			app: document.getElementById('app'),
 			userAvatar: document.getElementById('userAvatar'),
 			userName: document.getElementById('userName'),
 			currentMonthLabel: document.getElementById('currentMonthLabel'),
+			noticeSection: document.getElementById('noticeSection'),
 			noticeList: document.getElementById('noticeList'),
 			distributionList: document.getElementById('distributionList'),
+			noticeAccessMessage: document.getElementById('noticeAccessMessage'),
 			canvasCurrent: document.getElementById('canvasCurrent'),
 			canvasArchive: document.getElementById('canvasArchive'),
 			archiveMonthSelect: document.getElementById('archiveMonthSelect'),
 			archiveMonthLabel: document.getElementById('archiveMonthLabel'),
 			archiveList: document.getElementById('archiveList'),
+			goArchiveBottomBtn: document.getElementById('goArchiveBottomBtn'),
 			toast: document.getElementById('toast'),
 			toastInner: document.getElementById('toastInner'),
 			registerLink: document.getElementById('registerLink')
@@ -235,16 +277,33 @@
 			return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 		}
 
-		function buildRecentMonths(count = 12) {
-			const months = [];
-			const base = new Date();
-			base.setDate(1);
-			for (let i = 0; i < count; i++) {
-				const d = new Date(base.getFullYear(), base.getMonth() - i, 1);
-				const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-				months.push(ym);
+		function setAvailableArchiveMonths(months) {
+			const validMonths = Array.isArray(months)
+				? months.filter((ym) => /^\d{4}-(0[1-9]|1[0-2])$/.test(ym))
+				: [];
+			state.availableArchiveMonths = Array.from(new Set(validMonths))
+				.sort((a, b) => (a < b ? 1 : -1));
+		}
+
+		function getSelectableArchiveMonths() {
+			const months = state.availableArchiveMonths.length > 0
+				? state.availableArchiveMonths
+				: [getCurrentYm()];
+			return Array.from(new Set(months)).sort((a, b) => (a < b ? 1 : -1));
+		}
+
+		function refreshArchiveSelector() {
+			const months = getSelectableArchiveMonths();
+			if (!months.length) return;
+			const current = el.archiveMonthSelect.value || months[0];
+			el.archiveMonthSelect.innerHTML = months
+				.map((ym) => `<option value="${ym}">${formatYmToJa(ym)}</option>`)
+				.join('');
+			if (months.includes(current)) {
+				el.archiveMonthSelect.value = current;
+			} else {
+				el.archiveMonthSelect.value = months[0];
 			}
-			return months;
 		}
 
 		function switchMainState(next) {
@@ -260,6 +319,7 @@
 			const isCurrent = state.activeTab === 'current';
 			el.canvasCurrent.classList.toggle('hidden', !isCurrent);
 			el.canvasArchive.classList.toggle('hidden', isCurrent);
+			el.goArchiveBottomBtn.classList.toggle('hidden', !isCurrent);
 
 			el.tabBtnCurrent.className = isCurrent
 				? 'app-header__tab is-active'
@@ -278,6 +338,83 @@
 				type,
 				duration: 2600
 			});
+		}
+
+		function setLoadingMessage(message) {
+			if (!el.loadingMessage) return;
+			el.loadingMessage.textContent = message;
+		}
+
+		function getMonthlyCacheKey(ym, userId) {
+			return `kitaasai_notice_monthly_${userId || 'anonymous'}_${ym}`;
+		}
+
+		function getMemberCacheKey(userId) {
+			return `kitaasai_notice_member_${userId || 'anonymous'}`;
+		}
+
+		function readMemberProfileCache(userId) {
+			const key = getMemberCacheKey(userId);
+			const memoryCached = memberProfileMemoryCache.get(key);
+			if (memoryCached && (Date.now() - memoryCached.ts) < MEMBER_CACHE_TTL_MS) {
+				return memoryCached.member;
+			}
+
+			try {
+				const raw = sessionStorage.getItem(key);
+				if (!raw) return null;
+				const parsed = JSON.parse(raw);
+				if (!parsed || !parsed.member || !parsed.ts) return null;
+				if ((Date.now() - parsed.ts) >= MEMBER_CACHE_TTL_MS) return null;
+				memberProfileMemoryCache.set(key, parsed);
+				return parsed.member;
+			} catch (_) {
+				return null;
+			}
+		}
+
+		function writeMemberProfileCache(userId, member) {
+			const key = getMemberCacheKey(userId);
+			const payload = { ts: Date.now(), member };
+			memberProfileMemoryCache.set(key, payload);
+
+			try {
+				sessionStorage.setItem(key, JSON.stringify(payload));
+			} catch (_) {
+				// Storage full or blocked: ignore cache writes.
+			}
+		}
+
+		function readMonthlyItemsCache(ym, userId) {
+			const key = getMonthlyCacheKey(ym, userId);
+			const memoryCached = monthlyItemsMemoryCache.get(key);
+			if (memoryCached && (Date.now() - memoryCached.ts) < MONTHLY_CACHE_TTL_MS) {
+				return memoryCached.items;
+			}
+
+			try {
+				const raw = sessionStorage.getItem(key);
+				if (!raw) return null;
+				const parsed = JSON.parse(raw);
+				if (!parsed || !Array.isArray(parsed.items) || !parsed.ts) return null;
+				if ((Date.now() - parsed.ts) >= MONTHLY_CACHE_TTL_MS) return null;
+				monthlyItemsMemoryCache.set(key, parsed);
+				return parsed.items;
+			} catch (_) {
+				return null;
+			}
+		}
+
+		function writeMonthlyItemsCache(ym, userId, items) {
+			const key = getMonthlyCacheKey(ym, userId);
+			const payload = { ts: Date.now(), items };
+			monthlyItemsMemoryCache.set(key, payload);
+
+			try {
+				sessionStorage.setItem(key, JSON.stringify(payload));
+			} catch (_) {
+				// Storage full or blocked: ignore cache writes.
+			}
 		}
 
 		async function gasGet(params = {}) {
@@ -396,6 +533,21 @@
 			return [];
 		}
 
+		function normalizeMemberPayload(raw, profile = {}) {
+			const data = raw && raw.data ? raw.data : raw;
+			const normalized = MemberCheck.normalizeMemberCheckResponse(raw);
+			const status = normalized.status || MemberCheck.normalizeMemberStatus(data && data.status);
+
+			return {
+				isRegistered: normalized.isRegistered !== undefined ? normalized.isRegistered : status !== 'not_registered',
+				status,
+				canViewNotice: normalized.canViewNotice === true || (data && data.can_view_notice === true),
+				memberName: normalized.fullName || (data && (data.member_name || data.display_name)) || profile.displayName || '町民',
+				group: normalized.group || (data && (data.group || data.group_name)) || '',
+				registerFormUrl: normalized.registerFormUrl || (data && data.register_form_url) || REGISTER_FORM_URL
+			};
+		}
+
 		async function fetchMemberProfile() {
 			if (state.isLocalMode) {
 				const testStatus = getLocalTestStatus();
@@ -403,6 +555,7 @@
 					return {
 						isRegistered: false,
 						status: 'not_registered',
+						canViewNotice: false,
 						memberName: '未登録ユーザー',
 						registerFormUrl: REGISTER_FORM_URL
 					};
@@ -411,6 +564,7 @@
 					return {
 						isRegistered: true,
 						status: 'suspended',
+						canViewNotice: false,
 						memberName: '利用制限ユーザー',
 						registerFormUrl: REGISTER_FORM_URL
 					};
@@ -418,42 +572,94 @@
 				return {
 					isRegistered: true,
 					status: 'ok',
-					memberName: '北浅井 テスト住民',
+					canViewNotice: true,
+					memberName: '北浅井町 テスト住民',
 					registerFormUrl: REGISTER_FORM_URL
 				};
 			}
 
 			const profile = state.profile || {};
+			const userId = profile.userId || '';
+			const cached = readMemberProfileCache(userId);
+			if (cached) return cached;
+
 			const raw = await gasGet({
 				action: 'member_check',
+				user_id: userId,
+				display_name: profile.displayName || '',
+				picture_url: profile.pictureUrl || ''
+			});
+			const member = normalizeMemberPayload(raw, profile);
+			writeMemberProfileCache(userId, member);
+			return member;
+		}
+
+		async function fetchNoticeBootstrap(ym) {
+			const profile = state.profile || {};
+			const raw = await gasGet({
+				action: 'notice_bootstrap',
+				ym,
 				user_id: profile.userId || '',
 				display_name: profile.displayName || '',
 				picture_url: profile.pictureUrl || ''
 			});
 
 			const data = raw && raw.data ? raw.data : raw;
-			const normalized = MemberCheck.normalizeMemberCheckResponse(raw);
-			const status = normalized.status || MemberCheck.normalizeMemberStatus(data && data.status);
+			const member = normalizeMemberPayload(data && data.member ? data.member : raw, profile);
+			const rows = extractMonthlyItemRows(data && data.items ? data.items : data);
+			const items = rows
+				.map((item) => toMonthlyItem(item))
+				.filter((item) => item.label || item.url !== '#');
+			const availableMonths = Array.isArray(data && data.availableMonths)
+				? data.availableMonths
+				: null;
+
+			writeMemberProfileCache(profile.userId || '', member);
+			writeMonthlyItemsCache(ym, profile.userId || '', items);
 
 			return {
-				isRegistered: normalized.isRegistered !== undefined ? normalized.isRegistered : status !== 'not_registered',
-				status,
-				memberName: normalized.fullName || (data && (data.member_name || data.display_name)) || profile.displayName || '町民',
-				registerFormUrl: normalized.registerFormUrl || (data && data.register_form_url) || REGISTER_FORM_URL
+				member,
+				items,
+				availableMonths
 			};
 		}
 
+		async function fetchNoticeMonths() {
+			const profile = state.profile || {};
+			const raw = await gasGet({
+				action: 'notice_months',
+				user_id: profile.userId || '',
+				display_name: profile.displayName || '',
+				picture_url: profile.pictureUrl || ''
+			});
+
+			if (raw && raw.ok === false) {
+				throw new Error(raw.error && raw.error.message || 'Notice month request failed');
+			}
+			const data = raw && raw.data ? raw.data : raw;
+			if (!data || !Array.isArray(data.months)) {
+				throw new Error('Notice month response did not contain a months list');
+			}
+			return data.months;
+		}
+
 		async function fetchMonthlyItems(ym) {
+			const userId = state.profile?.userId || '';
+			const cached = readMonthlyItemsCache(ym, userId);
+			if (cached) return cached;
+
 			const raw = await gasGet({
 				action: 'get_monthly_items',
 				ym,
-				user_id: state.profile?.userId || ''
+				user_id: userId
 			});
 			const data = raw && raw.data ? raw.data : raw;
 			const rows = extractMonthlyItemRows(data);
 			const normalized = rows
 				.map((item) => toMonthlyItem(item))
 				.filter((item) => item.label || item.url !== '#');
+
+			writeMonthlyItemsCache(ym, userId, normalized);
 
 			if (normalized.length === 0 && state.isLocalMode) {
 				console.warn('月次データが0件でした。返却形式を確認してください。', raw);
@@ -474,7 +680,9 @@
 				return;
 			}
 
-			logAction({ action_type: 'item_click', item_label: label });
+			const targetMonth = getCurrentYm();
+			logAction({ action_type: 'item_click', item_label: label, url, target_month: targetMonth });
+			logAction({ action_type: 'item_redirect', item_label: label, url, target_month: targetMonth });
 
 			if (window.liff && liff.isInClient()) {
 				liff.openWindow({ url, external: true });
@@ -492,16 +700,29 @@
 		}
 
 		function createItemCard(item, mode = 'default') {
+			const itemCategory = classifyItem(item.type);
+			const typeLabel = itemCategory === 'notice' ? '回覧板' : '配布物';
+			const typeBadgeClass = itemCategory === 'notice'
+				? 'bg-sky-100 text-sky-700 border-sky-200'
+				: 'bg-amber-100 text-amber-700 border-amber-200';
+			const typeBadge = `
+				<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-bold ${typeBadgeClass}">
+					${typeLabel}
+				</span>
+			`;
 			const memoBlock = item.memo
 				? `<p class="text-xs text-slate-600 mt-2">${escapeHtml(item.memo)}</p>`
 				: '';
-			const buttonLabel = mode === 'archive' ? '開く' : (classifyItem(item.type) === 'notice' ? '確認する' : '配布物を開く');
+			const buttonLabel = mode === 'archive' ? '開く' : (itemCategory === 'notice' ? '確認する' : '配布物を開く');
 
 			return `
 				<article class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
 					<div class="flex items-start justify-between gap-2">
 						<div class="min-w-0">
-							<p class="text-[11px] text-slate-500">${escapeHtml(item.ymd || '-')}</p>
+							<div class="flex items-center gap-2 flex-wrap">
+								<p class="text-[11px] text-slate-500">${escapeHtml(item.ymd || '-')}</p>
+								${typeBadge}
+							</div>
 							<h4 class="text-sm font-bold text-slate-800 mt-1 break-words">${escapeHtml(item.label)}</h4>
 							${memoBlock}
 						</div>
@@ -521,10 +742,13 @@
 		function renderCurrentItems(items, ym) {
 			const notices = items.filter((item) => classifyItem(item.type) === 'notice');
 			const distributions = items.filter((item) => classifyItem(item.type) === 'distribution');
+			const canViewNotice = state.member && state.member.canViewNotice === true;
 
 			el.currentMonthLabel.textContent = formatYmToJa(ym);
+			el.noticeSection.classList.toggle('hidden', !canViewNotice);
+			el.noticeAccessMessage.classList.toggle('hidden', canViewNotice);
 			if (notices.length === 0) {
-				renderEmpty(el.noticeList, '今月の回覧板はありません');
+				renderEmpty(el.noticeList, canViewNotice ? '今月の回覧板はありません' : '回覧板の閲覧権限がありません');
 			} else {
 				el.noticeList.innerHTML = notices.map((item) => createItemCard(item)).join('');
 			}
@@ -543,6 +767,55 @@
 				return;
 			}
 			el.archiveList.innerHTML = items.map((item) => createItemCard(item, 'archive')).join('');
+		}
+
+		async function loadArchiveForMonth(ym, options = {}) {
+			const { showInlineLoading = true } = options;
+			const requestId = ++state.archiveRequestId;
+			state.archiveLoaded = false;
+
+			if (showInlineLoading) {
+				el.archiveList.innerHTML = '<div class="text-sm text-slate-500 px-1">読み込み中...</div>';
+			}
+			const items = await fetchMonthlyItems(ym);
+			if (requestId !== state.archiveRequestId || el.archiveMonthSelect.value !== ym) return;
+			state.archiveItems = items;
+			renderArchiveItems(items, ym);
+			state.archiveLoaded = true;
+			logAction({ action_type: 'page_view', ym });
+		}
+
+		async function ensureArchiveLoaded() {
+			if (state.archiveLoaded) return;
+			const ym = el.archiveMonthSelect.value || getCurrentYm();
+			try {
+				await loadArchiveForMonth(ym, { showInlineLoading: true });
+			} catch (error) {
+				if (el.archiveMonthSelect.value === ym) {
+					renderEmpty(el.archiveList, 'データの取得に失敗しました');
+					showToast('バックナンバー取得に失敗しました', 'error');
+				}
+			}
+		}
+
+		function prefetchArchiveSilently() {
+			if (state.archiveLoaded) return;
+			const runner = async () => {
+				if (state.archiveLoaded) return;
+				const ym = el.archiveMonthSelect.value || getCurrentYm();
+				try {
+					await loadArchiveForMonth(ym, { showInlineLoading: false });
+				} catch (_) {
+					// Silent prefetch should not disturb the UI.
+				}
+			};
+
+			if (typeof window.requestIdleCallback === 'function') {
+				window.requestIdleCallback(() => { runner(); }, { timeout: 1200 });
+				return;
+			}
+
+			setTimeout(() => { runner(); }, 400);
 		}
 
 		function bindCardClickEvents() {
@@ -567,17 +840,22 @@
 
 		function logAction(payload) {
 			if (state.isLocalMode) {
-				console.log('[LOCAL LOG]', payload.action_type, payload.item_label || '', payload.ym || getCurrentYm());
+				console.log('[LOCAL LOG]', payload.action_type, payload.item_label || '', payload.target_month || payload.ym || getCurrentYm());
 				return;
 			}
 
+			const targetMonth = payload.target_month || payload.ym || getCurrentYm();
 			const body = {
 				action: 'log',
 				action_type: payload.action_type,
 				item_label: payload.item_label || '',
-				ym: payload.ym || getCurrentYm(),
+				target_month: targetMonth,
+				ym: targetMonth,
+				url: payload.url || '',
 				user_id: state.profile?.userId || '',
-				user_name: state.member?.memberName || state.profile?.displayName || ''
+				user_name: state.member?.memberName || state.profile?.displayName || '',
+				group: state.member?.group || '',
+				meta: payload.meta || {}
 			};
 
 			if (navigator.sendBeacon) {
@@ -605,30 +883,32 @@
 				state.activeTab = 'current';
 				updateTabs();
 			});
-			el.tabBtnArchive.addEventListener('click', () => {
+			el.tabBtnArchive.addEventListener('click', async () => {
 				state.activeTab = 'archive';
 				updateTabs();
+				await ensureArchiveLoaded();
+			});
+			el.goArchiveBottomBtn.addEventListener('click', async () => {
+				state.activeTab = 'archive';
+				updateTabs();
+				await ensureArchiveLoaded();
+				el.archiveMonthSelect.scrollIntoView({ behavior: 'smooth', block: 'start' });
 			});
 			updateTabs();
 		}
 
 		function setupArchiveSelector() {
-			const months = buildRecentMonths(12);
-			el.archiveMonthSelect.innerHTML = months
-				.map((ym) => `<option value="${ym}">${formatYmToJa(ym)}</option>`)
-				.join('');
+			refreshArchiveSelector();
 
 			el.archiveMonthSelect.addEventListener('change', async (event) => {
 				const ym = event.target.value;
 				try {
-					el.archiveList.innerHTML = '<div class="text-sm text-slate-500 px-1">読み込み中...</div>';
-					const items = await fetchMonthlyItems(ym);
-					state.archiveItems = items;
-					renderArchiveItems(items, ym);
-					logAction({ action_type: 'page_view', ym });
+					await loadArchiveForMonth(ym, { showInlineLoading: true });
 				} catch (error) {
-					renderEmpty(el.archiveList, 'データの取得に失敗しました');
-					showToast('バックナンバー取得に失敗しました', 'error');
+					if (el.archiveMonthSelect.value === ym) {
+						renderEmpty(el.archiveList, 'データの取得に失敗しました');
+						showToast('バックナンバー取得に失敗しました', 'error');
+					}
 				}
 			});
 		}
@@ -686,6 +966,7 @@
 			el.registerLink.href = REGISTER_FORM_URL;
 
 			switchMainState('loading');
+			setLoadingMessage('LIFF認証を確認中...');
 
 			try {
 				if (state.isLocalMode) {
@@ -700,30 +981,52 @@
 					state.profile = profile;
 				}
 
-				state.member = await fetchMemberProfile();
+				const ym = getCurrentYm();
+				setLoadingMessage('住民名簿と照合中...');
+				if (state.isLocalMode) {
+					const currentItemsPromise = fetchMonthlyItems(ym);
+					state.member = await fetchMemberProfile();
+					setLoadingMessage('今月の回覧データを取得中...');
+					state.currentItems = await currentItemsPromise;
+					setAvailableArchiveMonths(await fetchNoticeMonths());
+				} else {
+					let bootstrap = null;
+					try {
+						bootstrap = await fetchNoticeBootstrap(ym);
+					} catch (_) {
+						// Fallback to legacy separate calls when unified endpoint is unavailable.
+					}
+
+					if (bootstrap) {
+						state.member = bootstrap.member;
+						state.currentItems = bootstrap.items;
+						if (bootstrap.availableMonths) {
+							setAvailableArchiveMonths(bootstrap.availableMonths);
+						} else {
+							setAvailableArchiveMonths(await fetchNoticeMonths());
+						}
+					} else {
+						const currentItemsPromise = fetchMonthlyItems(ym);
+						state.member = await fetchMemberProfile();
+						setLoadingMessage('今月の回覧データを取得中...');
+						state.currentItems = await currentItemsPromise;
+						setAvailableArchiveMonths(await fetchNoticeMonths());
+					}
+				}
+
 				el.userName.textContent = state.member.memberName;
 				el.userAvatar.src = state.profile.pictureUrl || 'https://placehold.jp/96x96.png';
 				el.registerLink.href = state.member.registerFormUrl || REGISTER_FORM_URL;
 
-				if (!state.member.isRegistered || state.member.status === 'not_registered') {
-					switchMainState('not_registered');
-					return;
-				}
-				if (state.member.status === 'suspended') {
-					switchMainState('suspended');
-					return;
-				}
-
-				const ym = getCurrentYm();
-				state.currentItems = await fetchMonthlyItems(ym);
+				setLoadingMessage('今月の回覧データを取得中...');
 				renderCurrentItems(state.currentItems, ym);
-
-				const archiveYm = el.archiveMonthSelect.value || ym;
-				state.archiveItems = await fetchMonthlyItems(archiveYm);
-				renderArchiveItems(state.archiveItems, archiveYm);
+				refreshArchiveSelector();
+				renderEmpty(el.archiveList, 'バックナンバーを見ると読み込みます');
+				state.archiveLoaded = false;
 
 				switchMainState('app');
 				logAction({ action_type: 'page_view', ym });
+				prefetchArchiveSilently();
 			} catch (error) {
 				console.error(error);
 				switchMainState('app');

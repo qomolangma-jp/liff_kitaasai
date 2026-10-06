@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>北浅井町|デジタル回覧板用名簿登録フォーム</title>
+  <title>[北浅井] 名簿登録フォーム</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -12,8 +12,8 @@
       margin: 0;
       min-height: 100vh;
       background:
-        radial-gradient(circle at top, rgba(34, 197, 94, 0.14), transparent 34%),
-        linear-gradient(180deg, #e2e8f0 0%, #f8fafc 45%, #eef2f7 100%);
+        radial-gradient(circle at top, rgba(250, 204, 21, 0.24), transparent 34%),
+        linear-gradient(180deg, #fff7ed 0%, #fffdf5 48%, #ecfdf5 100%);
       color: #0f172a;
     }
     .container {
@@ -26,8 +26,34 @@
       border: 1px solid rgba(226, 232, 240, 0.95);
       box-shadow: 0 24px 80px rgba(15, 23, 42, 0.16);
     }
+    .brand-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 18px 20px 8px;
+      background: linear-gradient(135deg, #047857 0%, #059669 72%, #10b981 100%);
+      border-bottom: 4px solid #facc15;
+      color: #fff;
+    }
+    .brand-header__logo {
+      width: 52px;
+      height: 52px;
+      object-fit: cover;
+      border-radius: 14px;
+      border: 2px solid rgba(255,255,255,0.5);
+      background: #fff;
+    }
+    .brand-header__title {
+      font-size: 1.1rem;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      margin: 0;
+      color: #fff;
+    }
     .hero {
-      background: linear-gradient(135deg, #0f172a 0%, #0f172a 50%, #166534 100%);
+      background: linear-gradient(135deg, #047857 0%, #059669 72%, #10b981 100%);
+      border-bottom: 4px solid #facc15;
       color: #fff;
       padding: 22px 20px 18px;
     }
@@ -39,7 +65,7 @@
       font-weight: 800;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: #bbf7d0;
+      color: #fde047;
       margin-bottom: 10px;
     }
     .hero h1 {
@@ -50,7 +76,7 @@
     }
     .hero p {
       margin: 8px 0 0;
-      color: #dbeafe;
+      color: #d1fae5;
       font-size: 0.8rem;
       line-height: 1.7;
     }
@@ -91,9 +117,9 @@
       transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
     }
     input[type="text"]:focus, select:focus, textarea:focus {
-      border-color: #16a34a;
+      border-color: #10b981;
       background: #fff;
-      box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.12);
+      box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.18);
     }
     .radio-group, .checkbox-group { margin-top: 5px; display: flex; gap: 15px 0; flex-wrap: wrap; justify-content: space-between;}
     .radio-group input[type="radio"],
@@ -110,8 +136,8 @@
     .radio-group label:has(input:checked),
     .checkbox-group label:has(input:checked),
     .radio-group label.is-selected,
-    .checkbox-group label.is-selected { background: linear-gradient(135deg, #16a34a, #15803d); border-color: #16a34a; color: #fff; box-shadow: 0 10px 18px rgba(22, 163, 74, 0.18); }
-    .radio-group label:hover, .checkbox-group label:hover { border-color: #16a34a; color: #16a34a; }
+    .checkbox-group label.is-selected { background: linear-gradient(135deg, #047857, #10b981); border-color: #047857; color: #fff; box-shadow: 0 10px 18px rgba(4, 120, 87, 0.2); }
+    .radio-group label:hover, .checkbox-group label:hover { border-color: #10b981; color: #047857; }
     .radio-group label:has(input:checked):hover,
     .checkbox-group label:has(input:checked):hover,
     .radio-group label.is-selected:hover,
@@ -124,7 +150,8 @@
     button {
       width: 100%;
       padding: 15px;
-      background: linear-gradient(135deg, #16a34a, #15803d);
+      background: linear-gradient(135deg, #047857, #10b981);
+      border-bottom: 4px solid #facc15;
       color: white;
       border: none;
       border-radius: 18px;
@@ -132,7 +159,7 @@
       font-weight: 900;
       cursor: pointer;
       transition: transform 0.2s, box-shadow 0.2s, opacity 0.3s;
-      box-shadow: 0 12px 24px rgba(22, 163, 74, 0.22);
+      box-shadow: 0 12px 24px rgba(4, 120, 87, 0.24);
     }
     button:hover { transform: translateY(-1px); }
     button:disabled { opacity: 0.55; cursor: not-allowed; box-shadow: none; transform: none; }
@@ -205,8 +232,8 @@
       color: #b91c1c;
     }
     .modal-icon.info {
-      background: #dbeafe;
-      color: #1d4ed8;
+      background: #fef9c3;
+      color: #a16207;
     }
     #modal-title {
       margin: 0;
@@ -231,7 +258,7 @@
       border: none;
       cursor: pointer;
       color: #fff;
-      background: linear-gradient(135deg, #16a34a, #15803d);
+      background: linear-gradient(135deg, #047857, #10b981);
     }
     #modal-close-btn.error {
       background: linear-gradient(135deg, #dc2626, #b91c1c);
@@ -253,8 +280,8 @@
       color: #fff;
       line-height: 1;
     }
-    .officer-badge.officer { background: linear-gradient(135deg, #dc2626, #b91c1c); }
-    .officer-badge.leader { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
+    .officer-badge.officer { background: linear-gradient(135deg, #059669, #047857); }
+    .officer-badge.leader { background: linear-gradient(135deg, #047857, #10b981); }
     @media (max-width: 640px) {
       .container { margin: 0; border-radius: 0; min-height: 100vh; }
       .content { padding: 16px 14px 20px; }
@@ -295,7 +322,7 @@
     <form id="profileForm">
       <div class="row-flex keep-row-on-mobile">
         <div class="half">
-          <label>氏<span class="required-mark">※</span></label>
+          <label>姓<span class="required-mark">※</span></label>
           <input type="text" name="name_2nd" placeholder="例: 山田" required>
         </div>
         <div class="half">
@@ -306,7 +333,7 @@
 
       <div class="row-flex keep-row-on-mobile">
         <div class="half">
-          <label>シ<span class="required-mark">※</span></label>
+          <label>セイ<span class="required-mark">※</span></label>
           <input type="text" name="kana_2nd" placeholder="例: ヤマダ" required>
         </div>
         <div class="half">
@@ -332,6 +359,7 @@
       <div class="radio-group">
         <label><input type="radio" name="is_digital" value="1"> スマホで受け取る</label>
         <label><input type="radio" name="is_digital" value="2"> 紙で受け取る</label>
+        <label><input type="radio" name="is_digital" value="3"> 両方で受け取る</label>
       </div>
 
       <label>カテゴリ（複数選択可）</label>
@@ -344,7 +372,7 @@
         <label><input type="checkbox" name="role" value="青壮年部"> 青壮年部</label>
         <label><input type="checkbox" name="role" value="婦人部"> 婦人部</label>
         <label><input type="checkbox" name="role" value="民生委員"> 民生委員</label>
-        <label><input type="checkbox" name="role" value="ほがらかクラブ"> ほがらかクラブ</label>
+        <label><input type="checkbox" name="role" value="老人会"> 老人会</label>
         <label><input type="checkbox" name="role" value="神社奉賛会"> 神社奉賛会</label>
       </div>
 
@@ -358,11 +386,13 @@
   </div>
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="./common/app-config.js"></script>
   <script>
     // ※ ご自身の公開URLに変更してください
-    
-    const LIFF_ID = '2008962357-ePaQmDO9'; // あなたのLIFF ID
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbw0w3rY63BgD0a0pV4R5f5XmRVi7J8070hjkgIr6zArFyrOBoOXa9XkqJnbMCFF3FUy/exec'; // あなたのGAS ウェブアプリURL
+
+    const PAGE_CONFIG = (window.AppConfig && window.AppConfig.getRequiredPageConfig('profile')) || {};
+    const LIFF_ID = PAGE_CONFIG.liffId;
+    const GAS_URL = PAGE_CONFIG.gasUrl;
 
     function isLocalEnvironment() {
       return window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
@@ -482,6 +512,38 @@
       }
     }
 
+    function showSafetyCheckReminder() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('from_safety_check') !== '1') {
+        return;
+      }
+
+      const kana1 = document.querySelector('input[name="kana_1st"]');
+      const kana2 = document.querySelector('input[name="kana_2nd"]');
+      const hasKatakana = !!(kana1 && kana2 && (kana1.value.trim() || kana2.value.trim()));
+
+      if (hasKatakana) {
+        return;
+      }
+
+      const banner = document.createElement('div');
+      banner.style.margin = '16px 15px 0';
+      banner.style.background = '#fff7ed';
+      banner.style.border = '1px solid #fdba74';
+      banner.style.color = '#9a4d00';
+      banner.style.borderRadius = '14px';
+      banner.style.padding = '12px 14px';
+      banner.style.fontSize = '0.9rem';
+      banner.style.fontWeight = '700';
+      banner.style.lineHeight = '1.6';
+      banner.textContent = '安否確認は受け付けました。引き続き、ユーザー登録を行ってください。';
+
+      const content = document.querySelector('.content');
+      if (content) {
+        content.insertBefore(banner, content.firstChild);
+      }
+    }
+
     function showModal({ title = 'お知らせ', message = '', type = 'info', onClose = null }) {
       const modal = document.getElementById('result-modal');
       const titleEl = document.getElementById('modal-title');
@@ -532,6 +594,8 @@
       document.querySelectorAll('.radio-group input, .checkbox-group input').forEach(input => {
         input.addEventListener('change', syncSelectableLabels);
       });
+
+      showSafetyCheckReminder();
 
       try {
         await liff.init({ liffId: LIFF_ID });
